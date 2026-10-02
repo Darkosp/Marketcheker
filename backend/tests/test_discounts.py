@@ -18,7 +18,6 @@ from app.services.discounts import (
     available_stores,
     count_discounts,
     counts_by_group,
-    group_discounts,
     latest_run_date,
     list_discounts,
 )
@@ -266,20 +265,6 @@ async def test_rows_without_unit_price_go_last_not_first(seeded) -> None:
 # ==========================================================================
 # Групирање и менија
 # ==========================================================================
-async def test_group_discounts_returns_sections(seeded) -> None:
-    groups = await group_discounts(seeded, DiscountFilter(run_date=RUN_DATE))
-    names = {group.slug: group.count for group in groups}
-    assert names["kozmetika"] == 1
-    assert names["hrana"] >= 1
-
-
-async def test_groups_come_in_display_order(seeded) -> None:
-    groups = await group_discounts(seeded, DiscountFilter(run_date=RUN_DATE))
-    slugs = [group.slug for group in groups]
-    # Храна е прва по sort_order.
-    assert slugs[0] == "hrana"
-
-
 async def test_counts_by_group(seeded) -> None:
     rows = await counts_by_group(seeded, DiscountFilter(run_date=RUN_DATE))
     counts = {slug: count for slug, _, count in rows}

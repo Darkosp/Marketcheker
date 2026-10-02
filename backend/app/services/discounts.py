@@ -14,7 +14,7 @@ from enum import StrEnum
 
 from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import aliased, joinedload
+from sqlalchemy.orm import aliased
 
 from app.models import (
     Chain,
@@ -129,19 +129,6 @@ class DiscountRow:
         return f"{self.unit_price_base:.0f} ден/{unit}"
 
 
-@dataclass(slots=True)
-class DiscountGroup:
-    """Група по употреба со своите попусти."""
-
-    slug: str
-    name: str
-    rows: list[DiscountRow]
-
-    @property
-    def count(self) -> int:
-        return len(self.rows)
-
-
 def _join_and_filter(query: Select, filters: DiscountFilter) -> Select:
     """Ги додава join-овите и условите на било кој упит врз price_row.
 
@@ -178,38 +165,6 @@ def _join_and_filter(query: Select, filters: DiscountFilter) -> Select:
         query = query.where(PriceRow.is_single_day.is_(True))
 
     return query
-
-
-def _base_query(filters: DiscountFilter) -> Select:
-    """Упитот што ги враќа самите редови, со вчитани врски за приказ."""
-    return _join_and_filter(select(PriceRow), filters).options(
-        joinedload(PriceRow.product)
-        .joinedload(Product.category)
-        .joinedload(ProductCategory.parent),
-        joinedload(PriceRow.store).joinedload(Store.chain),
-        joinedload(PriceRow.store).joinedload(Store.city),
-    )
-
-
-def _ordering(filters: DiscountFilter):
-    match filters.sort_by:
-        case SortBy.DISCOUNT_PCT:
-            # Без попуст-процент одат на крај, не на почеток.
-            return (PriceRow.discount_pct.desc().nullslast(), Product.raw_name)
-        case SortBy.PRICE_ASC:
-            return (PriceRow.discount_price.asc().nullslast(), Product.raw_name)
-        case SortBy.UNIT_PRICE:
-            # Прво по единица, па по цена. 6 ден/м и 800 ден/кг не се
-            # споредливи - мешањето ги ставаше метрите пред килограмите.
-            return (
-                Product.base_unit.asc().nullslast(),
-                PriceRow.unit_price_base.asc().nullslast(),
-                Product.raw_name,
-            )
-        case SortBy.STORE:
-            return (Chain.name, Store.name, Product.raw_name)
-        case _:
-            return (Product.raw_name,)
 
 
 # Колоните по кои се спојуваат редовите. Цената е меѓу нив намерно:
@@ -307,34 +262,6 @@ async def count_discounts(session: AsyncSession, filters: DiscountFilter) -> int
     """Колку РАЗЛИЧНИ попусти има - спојување како во списокот."""
     inner = _join_and_filter(select(*_GROUPING), filters).group_by(*_GROUPING)
     return await session.scalar(select(func.count()).select_from(inner.subquery())) or 0
-
-
-async def group_discounts(
-    session: AsyncSession, filters: DiscountFilter
-) -> list[DiscountGroup]:
-    """Ги враќа попустите подредени по групи, за приказ по секции."""
-    rows = await list_discounts(session, filters)
-
-    buckets: dict[str, DiscountGroup] = {}
-    for row in rows:
-        slug = row.group_slug or "drugo"
-        bucket = buckets.get(slug)
-        if bucket is None:
-            bucket = DiscountGroup(slug=slug, name=row.group_name or "Друго", rows=[])
-            buckets[slug] = bucket
-        bucket.rows.append(row)
-
-    order = await _group_order(session)
-    return sorted(buckets.values(), key=lambda g: (order.get(g.slug, 9999), g.name))
-
-
-async def _group_order(session: AsyncSession) -> dict[str, int]:
-    rows = await session.execute(
-        select(ProductCategory.slug, ProductCategory.sort_order).where(
-            ProductCategory.parent_id.is_(None)
-        )
-    )
-    return dict(rows.all())
 
 
 async def counts_by_group(
@@ -492,48 +419,8 @@ def _from_aggregate(row) -> DiscountRow:
     )
 
 
-def _to_row(row: PriceRow) -> DiscountRow:
-    product = row.product
-    store = row.store
-    category = product.category
-    package = None
-    if product.package_value is not None and product.package_unit:
-        value = product.package_value.normalize()
-        package = f"{value} {product.package_unit}"
-
-    # Категоријата може да е под-категорија; тогаш групата е нејзиниот
-    # родител. Ако нема родител, самата таа е групата.
-    group = category.parent if category is not None and category.parent else category
-    subcategory = category if category is not None and category.parent else None
-
-    return DiscountRow(
-        price_row_id=row.id,
-        product_name=product.raw_name,
-        product_description=product.raw_description,
-        package=package,
-        chain_name=store.chain.name,
-        store_name=store.name,
-        city_name=store.city.name if store.city else None,
-        regular_price=row.regular_price,
-        discount_price=row.discount_price,
-        discount_pct=row.discount_pct,
-        unit_price_base=row.unit_price_base,
-        base_unit=product.base_unit.value if product.base_unit else None,
-        promo_type=row.promo_type,
-        promo_type_raw=row.promo_type_raw,
-        valid_from=row.valid_from,
-        valid_to=row.valid_to,
-        is_single_day=row.is_single_day,
-        group_slug=group.slug if group else None,
-        group_name=group.name if group else None,
-        subcategory_slug=subcategory.slug if subcategory else None,
-        subcategory_name=subcategory.name if subcategory else None,
-    )
-
-
 __all__ = [
     "DiscountFilter",
-    "DiscountGroup",
     "DiscountRow",
     "SortBy",
     "available_cities",
@@ -541,7 +428,6 @@ __all__ = [
     "count_discounts",
     "counts_by_group",
     "counts_by_subcategory",
-    "group_discounts",
     "latest_run_date",
     "list_discounts",
     "run_summary",
