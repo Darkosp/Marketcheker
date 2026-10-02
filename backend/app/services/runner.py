@@ -19,7 +19,7 @@ from app.db.session import SessionLocal
 from app.models.enums import RunStatus
 from app.readers import PoliteClient, get_reader_class
 from app.readers.base import PricelistReader, ReaderError
-from app.readers.registry import READERS
+from app.readers.registry import default_chain_codes
 from app.services.ingest import ensure_chain, ensure_groups, ingest_store, today_local
 
 log = get_logger(__name__)
@@ -34,6 +34,7 @@ class ChainOutcome:
     succeeded: int = 0
     failed: int = 0
     unchanged: int = 0
+    empty: int = 0
     discounts: int = 0
     errors: list[str] = field(default_factory=list)
 
@@ -87,6 +88,9 @@ async def run_chain(
                 outcome.discounts += run.rows_discount
             case RunStatus.UNCHANGED:
                 outcome.unchanged += 1
+            case RunStatus.EMPTY:
+                # Изворот нема што да објави - не е наша грешка.
+                outcome.empty += 1
             case _:
                 outcome.failed += 1
                 if run.error_message and len(outcome.errors) < 5:
@@ -139,7 +143,8 @@ async def run_all(
     не колку збирот.
     """
     run_date = run_date or today_local()
-    codes = chain_codes or list(READERS)
+    # Прескокнатите синџири (паднат извор) влегуваат само изрично.
+    codes = chain_codes or default_chain_codes()
 
     log.info("Дневно читање за %s: %s", run_date, ", ".join(codes))
 

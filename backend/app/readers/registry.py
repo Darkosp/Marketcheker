@@ -7,14 +7,24 @@ Chain.code во базата го најдува својот модул пре�
 from __future__ import annotations
 
 from app.readers.base import PricelistReader
+from app.readers.kam import KamReader
+from app.readers.kipper import KipperReader
 from app.readers.ramstore import RamstoreReader
+from app.readers.tinex import TinexReader
 from app.readers.vero import VeroReader
 
 READERS: dict[str, type[PricelistReader]] = {
     VeroReader.chain_code: VeroReader,
     RamstoreReader.chain_code: RamstoreReader,
-    # Кипер, КАМ и Тинекс доаѓаат во чекор 6.
+    KipperReader.chain_code: KipperReader,
+    KamReader.chain_code: KamReader,
+    TinexReader.chain_code: TinexReader,
 }
+
+# Синџири што дневното читање ги прескокнува, зашто изворот не работи.
+# Се читаат само кога се побараат изрично (пр. `citaj --tinex`), што е
+# начин да се провери дали сајтот се вратил.
+SKIPPED_BY_DEFAULT: frozenset[str] = frozenset({TinexReader.chain_code})
 
 
 def get_reader_class(chain_code: str) -> type[PricelistReader]:
@@ -26,6 +36,11 @@ def get_reader_class(chain_code: str) -> type[PricelistReader]:
         raise LookupError(
             f"нема читач за синџир {chain_code!r}; познати: {known}"
         ) from None
+
+
+def default_chain_codes() -> list[str]:
+    """Синџирите што влегуваат во дневното читање."""
+    return [code for code in READERS if code not in SKIPPED_BY_DEFAULT]
 
 
 def available_chains() -> list[tuple[str, str, str]]:

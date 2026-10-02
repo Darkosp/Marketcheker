@@ -61,7 +61,8 @@ async def _read(args: argparse.Namespace) -> int:
         print(
             f"{mark} {outcome.chain_code}: {outcome.succeeded}/{outcome.stores} "
             f"продавници, {outcome.discounts} попусти, "
-            f"{outcome.unchanged} непроменети, {outcome.failed} паднати"
+            f"{outcome.unchanged} непроменети, {outcome.empty} без цени, "
+            f"{outcome.failed} паднати"
         )
         for error in outcome.errors:
             print(f"      {error}")

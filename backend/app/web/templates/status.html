@@ -30,6 +30,7 @@
           <td>
             {% if status == "success" %}успешно
             {% elif status == "unchanged" %}непроменет ценовник
+            {% elif status == "empty" %}изворот не објави цени
             {% elif status == "failed" %}изворот не е достапен
             {% elif status == "structure_changed" %}сменета структура — бара поправка
             {% elif status == "running" %}во тек

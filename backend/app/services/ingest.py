@@ -34,6 +34,7 @@ from app.models import (
 )
 from app.models.enums import CategoryStatus, RunStatus
 from app.readers.base import (
+    EmptyPricelist,
     PricelistReader,
     RawPriceRow,
     ReaderError,
@@ -220,17 +221,24 @@ async def fail_run(
     session: AsyncSession, run: PricelistRun, error: BaseException
 ) -> PricelistRun:
     """Запишува неуспешно читање. Никогаш тивок празен резултат."""
-    run.status = (
-        RunStatus.STRUCTURE_CHANGED
-        if isinstance(error, StructureChanged)
-        else RunStatus.FAILED
-    )
+    # Празен ценовник НЕ е дефект кај нас: изворот одговорил, само нема
+    # што да објави (Кипер Штип враќа recordsTotal=0). Ако се води како
+    # FAILED, состојбата секој ден изгледа алармантно без причина.
+    match error:
+        case StructureChanged():
+            run.status = RunStatus.STRUCTURE_CHANGED
+        case EmptyPricelist():
+            run.status = RunStatus.EMPTY
+        case _:
+            run.status = RunStatus.FAILED
     run.finished_at = datetime.now(UTC)
     run.error_type = type(error).__name__
     run.error_message = str(error)[:4000]
-    log.error(
-        "Читањето на %s падна (%s): %s",
+    log_at = log.info if run.status is RunStatus.EMPTY else log.error
+    log_at(
+        "Читањето на %s заврши со %s (%s): %s",
         run.source_url or run.store_id,
+        run.status.value,
         run.error_type,
         run.error_message,
     )

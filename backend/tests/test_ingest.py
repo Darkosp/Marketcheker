@@ -279,12 +279,14 @@ async def test_structure_change_gets_its_own_status(db_session) -> None:
     assert run.status is RunStatus.STRUCTURE_CHANGED
 
 
-async def test_empty_pricelist_is_an_error_not_a_quiet_zero(db_session) -> None:
+async def test_empty_pricelist_is_recorded_not_silently_zero(db_session) -> None:
+    """Празен ценовник се запишува со свој статус, не исчезнува тивко."""
     from app.readers.base import EmptyPricelist
 
     run = await _ingest(db_session, error=EmptyPricelist("нема редови"))
-    assert run.status is RunStatus.FAILED
+    assert run.status is RunStatus.EMPTY
     assert run.rows_discount == 0
+    assert run.finished_at is not None
 
 
 # ==========================================================================
@@ -382,3 +384,17 @@ def test_today_local_uses_skopje_timezone() -> None:
     today = ingest.today_local()
     assert isinstance(today, date)
     assert abs((today - datetime.now(UTC).date()).days) <= 1
+
+
+async def test_empty_pricelist_is_not_a_failure(db_session) -> None:
+    """Изворот одговори, но нема што да објави - не е наша грешка.
+
+    Кипер во Штип и Зајас враќа recordsTotal=0 секој ден. Со статус FAILED
+    состојбата би изгледала алармантно без причина.
+    """
+    from app.readers.base import EmptyPricelist
+
+    run = await _ingest(db_session, error=EmptyPricelist("нема редови"))
+    assert run.status is RunStatus.EMPTY
+    assert run.status is not RunStatus.FAILED
+    assert run.error_message

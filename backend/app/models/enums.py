@@ -23,6 +23,7 @@ class RunStatus(StrEnum):
     RUNNING = "running"
     SUCCESS = "success"
     FAILED = "failed"  # мрежа/HTTP/парсирање падна
+    EMPTY = "empty"  # изворот одговори, но не објави ниту еден производ
     STRUCTURE_CHANGED = "structure_changed"  # изворот смени формат - бара човек
     UNCHANGED = "unchanged"  # ист content_hash како претходно
     SKIPPED = "skipped"
