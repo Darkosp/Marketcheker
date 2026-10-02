@@ -83,7 +83,16 @@ select {
 
 .check { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; }
 
-.chips { display: flex; flex-wrap: wrap; gap: 6px; flex-basis: 100%; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+#grupi { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; }
+
+/* Второ ниво копчиња: помали и вовлечени. */
+.chips-sub {
+  padding-left: 10px;
+  border-left: 3px solid var(--accent);
+}
+
+.chip-sm { font-size: 0.74rem; padding: 4px 8px; }
 
 .chip {
   padding: 6px 10px;
@@ -177,6 +186,7 @@ select {
 .tag-loyalty { color: var(--loyalty); border-color: var(--loyalty); font-weight: 600; }
 .tag-day { color: var(--sale); border-color: var(--sale); font-weight: 600; }
 .tag-desc { font-style: italic; }
+.tag-sub { color: var(--accent); border-color: var(--accent); }
 
 /* ---- состојба ---- */
 .status {

@@ -13,14 +13,19 @@ from datetime import date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.catalog import default_grouper
-from app.catalog.groups import GROUPS
+from app.catalog.groups import GROUPS, SUBCATEGORIES
 from app.core.logging import get_logger
 from app.db.session import SessionLocal
 from app.models.enums import RunStatus
 from app.readers import PoliteClient, get_reader_class
 from app.readers.base import PricelistReader, ReaderError
 from app.readers.registry import default_chain_codes
-from app.services.ingest import ensure_chain, ensure_groups, ingest_store, today_local
+from app.services.ingest import (
+    ensure_categories,
+    ensure_chain,
+    ingest_store,
+    today_local,
+)
 
 log = get_logger(__name__)
 
@@ -53,7 +58,7 @@ async def run_chain(
     """Чита еден синџир: откриј продавници, па прочитај ги една по една."""
     outcome = ChainOutcome(chain_code=reader.chain_code)
     chain = await ensure_chain(session, type(reader))
-    groups = await ensure_groups(session, GROUPS)
+    categories = await ensure_categories(session, GROUPS, SUBCATEGORIES)
     grouper = default_grouper()
 
     try:
@@ -76,7 +81,7 @@ async def run_chain(
             ref,
             run_date=run_date,
             grouper=grouper,
-            groups=groups,
+            categories=categories,
         )
         # Секоја продавница се потврдува одделно: ако следната падне,
         # претходните остануваат запишани.

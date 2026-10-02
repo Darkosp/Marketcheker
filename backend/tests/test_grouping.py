@@ -8,8 +8,14 @@ from __future__ import annotations
 
 import pytest
 
-from app.catalog import Keyword, build_grouper, default_grouper, group_slugs
-from app.catalog.groups import FALLBACK_SLUG, GROUPS, KEYWORDS
+from app.catalog import Keyword, build_grouper, default_grouper
+from app.catalog.groups import (
+    FALLBACK_SLUG,
+    GROUPS,
+    KEYWORDS,
+    category_slugs,
+    group_slugs,
+)
 
 
 @pytest.fixture(scope="module")
@@ -195,10 +201,17 @@ def test_match_reports_where_it_matched(grouper) -> None:
 # ==========================================================================
 # Исправност на самиот речник
 # ==========================================================================
-def test_every_keyword_points_to_a_real_group() -> None:
-    slugs = group_slugs()
-    unknown = sorted({k.group_slug for k in KEYWORDS} - slugs)
-    assert unknown == [], f"клучни зборови со непозната група: {unknown}"
+def test_every_keyword_points_to_a_real_category() -> None:
+    """Клучен збор смее да води кон група или под-категорија, не кон ништо."""
+    unknown = sorted({k.category_slug for k in KEYWORDS} - category_slugs())
+    assert unknown == [], f"клучни зборови со непозната категорија: {unknown}"
+
+
+def test_every_subcategory_has_a_real_parent() -> None:
+    from app.catalog.groups import PARENT_OF
+
+    orphans = sorted(set(PARENT_OF.values()) - group_slugs())
+    assert orphans == [], f"под-категории со непозната група: {orphans}"
 
 
 def test_group_slugs_are_unique() -> None:

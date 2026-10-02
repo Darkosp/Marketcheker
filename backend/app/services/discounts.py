@@ -7,14 +7,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import aliased, joinedload
 
 from app.models import (
     Chain,
@@ -36,6 +36,12 @@ UNIT_LABELS = {
     "m2": "м2",
     "pranje": "перење",
 }
+
+
+# Категоријата на производот може да е под-категорија; групата е нејзиниот
+# родител. Затоа ProductCategory влегува двапати во упитот.
+Category = aliased(ProductCategory, name="kategorija")
+Group = aliased(ProductCategory, name="grupa")
 
 
 class SortBy(StrEnum):
@@ -88,6 +94,9 @@ class DiscountRow:
     is_single_day: bool
     group_slug: str | None
     group_name: str | None
+    # Под-категоријата, ако производот стигнал до второ ниво.
+    subcategory_slug: str | None = None
+    subcategory_name: str | None = None
 
     @property
     def is_loyalty_only(self) -> bool:
@@ -116,20 +125,21 @@ class DiscountGroup:
         return len(self.rows)
 
 
-def _base_query(filters: DiscountFilter) -> Select:
+def _join_and_filter(query: Select, filters: DiscountFilter) -> Select:
+    """Ги додава join-овите и условите на било кој упит врз price_row.
+
+    Одделена од изборот на колони: `with_only_columns` врз готов упит ја
+    губи врската со outerjoin-овите, па броењето по група даваше погрешни
+    бројки (сите редови паѓаа во првата група).
+    """
     query = (
-        select(PriceRow)
-        .join(PriceRow.product)
+        query.join(PriceRow.product)
         .join(PriceRow.store)
         .join(Store.chain)
         .outerjoin(Store.city)
-        .outerjoin(Product.category)
+        .outerjoin(Category, Product.category_id == Category.id)
+        .outerjoin(Group, Category.parent_id == Group.id)
         .where(PriceRow.run_date == filters.run_date, PriceRow.is_discount.is_(True))
-        .options(
-            joinedload(PriceRow.product).joinedload(Product.category),
-            joinedload(PriceRow.store).joinedload(Store.chain),
-            joinedload(PriceRow.store).joinedload(Store.city),
-        )
     )
 
     if filters.city_slug:
@@ -137,13 +147,31 @@ def _base_query(filters: DiscountFilter) -> Select:
     if filters.store_ids:
         query = query.where(PriceRow.store_id.in_(filters.store_ids))
     if filters.group_slug:
-        query = query.where(ProductCategory.slug == filters.group_slug)
+        # Истиот филтер прима и група и под-категорија: „hrana" ја дава
+        # цела Храна, „slatki" само слатките во неа.
+        query = query.where(
+            or_(
+                Category.slug == filters.group_slug,
+                Group.slug == filters.group_slug,
+            )
+        )
     if not filters.include_loyalty:
         query = query.where(PriceRow.promo_type != PromoType.LOYALTY)
     if filters.only_single_day:
         query = query.where(PriceRow.is_single_day.is_(True))
 
     return query
+
+
+def _base_query(filters: DiscountFilter) -> Select:
+    """Упитот што ги враќа самите редови, со вчитани врски за приказ."""
+    return _join_and_filter(select(PriceRow), filters).options(
+        joinedload(PriceRow.product)
+        .joinedload(Product.category)
+        .joinedload(ProductCategory.parent),
+        joinedload(PriceRow.store).joinedload(Store.chain),
+        joinedload(PriceRow.store).joinedload(Store.city),
+    )
 
 
 def _ordering(filters: DiscountFilter):
@@ -181,8 +209,8 @@ async def list_discounts(
 
 
 async def count_discounts(session: AsyncSession, filters: DiscountFilter) -> int:
-    inner = _base_query(filters).options().with_only_columns(PriceRow.id)
-    return await session.scalar(select(func.count()).select_from(inner.subquery())) or 0
+    query = _join_and_filter(select(func.count(PriceRow.id)), filters)
+    return await session.scalar(query) or 0
 
 
 async def group_discounts(
@@ -217,20 +245,45 @@ async def counts_by_group(
     session: AsyncSession, filters: DiscountFilter
 ) -> list[tuple[str, str, int]]:
     """(slug, име, број) по група - за менито, без вчитување на редовите."""
+    # Се брои по ГРУПА: под-категориите се собираат во својот родител.
+    slug = func.coalesce(Group.slug, Category.slug)
+    name = func.coalesce(Group.name, Category.name)
+    order = func.coalesce(Group.sort_order, Category.sort_order)
+
     query = (
-        _base_query(filters)
-        .options()
-        .with_only_columns(
-            ProductCategory.slug,
-            ProductCategory.name,
-            func.count(PriceRow.id),
-            ProductCategory.sort_order,
-        )
-        .group_by(ProductCategory.slug, ProductCategory.name, ProductCategory.sort_order)
-        .order_by(ProductCategory.sort_order)
+        _join_and_filter(select(slug, name, func.count(PriceRow.id), order), filters)
+        .group_by(slug, name, order)
+        .order_by(order)
     )
     rows = await session.execute(query)
-    return [(slug or "drugo", name or "Друго", count) for slug, name, count, _ in rows]
+    return [(s or "drugo", n or "Друго", count) for s, n, count, _ in rows]
+
+
+async def counts_by_subcategory(
+    session: AsyncSession, filters: DiscountFilter, group_slug: str
+) -> list[tuple[str, str, int]]:
+    """(slug, име, број) за под-категориите во една група.
+
+    Служи за второто ниво копчиња: кога ќе се избере „Храна", се појавуваат
+    нејзините под-категории.
+    """
+    inner = replace(filters, group_slug=group_slug)
+    query = (
+        _join_and_filter(
+            select(
+                Category.slug,
+                Category.name,
+                func.count(PriceRow.id),
+                Category.sort_order,
+            ),
+            inner,
+        )
+        .where(Category.parent_id.isnot(None))
+        .group_by(Category.slug, Category.name, Category.sort_order)
+        .order_by(Category.sort_order)
+    )
+    rows = await session.execute(query)
+    return [(slug, name, count) for slug, name, count, _ in rows]
 
 
 async def available_cities(
@@ -304,6 +357,11 @@ def _to_row(row: PriceRow) -> DiscountRow:
         value = product.package_value.normalize()
         package = f"{value} {product.package_unit}"
 
+    # Категоријата може да е под-категорија; тогаш групата е нејзиниот
+    # родител. Ако нема родител, самата таа е групата.
+    group = category.parent if category is not None and category.parent else category
+    subcategory = category if category is not None and category.parent else None
+
     return DiscountRow(
         price_row_id=row.id,
         product_name=product.raw_name,
@@ -322,8 +380,10 @@ def _to_row(row: PriceRow) -> DiscountRow:
         valid_from=row.valid_from,
         valid_to=row.valid_to,
         is_single_day=row.is_single_day,
-        group_slug=category.slug if category else None,
-        group_name=category.name if category else None,
+        group_slug=group.slug if group else None,
+        group_name=group.name if group else None,
+        subcategory_slug=subcategory.slug if subcategory else None,
+        subcategory_name=subcategory.name if subcategory else None,
     )
 
 
@@ -336,6 +396,7 @@ __all__ = [
     "available_stores",
     "count_discounts",
     "counts_by_group",
+    "counts_by_subcategory",
     "group_discounts",
     "latest_run_date",
     "list_discounts",

@@ -8,7 +8,7 @@ from decimal import Decimal
 import pytest
 
 from app.catalog import default_grouper
-from app.catalog.groups import GROUPS
+from app.catalog.groups import GROUPS, SUBCATEGORIES
 from app.readers.base import RawPriceRow, ReaderResult, StoreRef
 from app.services import ingest
 from app.services.discounts import (
@@ -57,7 +57,7 @@ def _row(name: str, **kwargs) -> RawPriceRow:
 
 async def _seed(session, reader_class, ref: StoreRef, rows: list[RawPriceRow]) -> None:
     chain = await ingest.ensure_chain(session, reader_class)
-    groups = await ingest.ensure_groups(session, GROUPS)
+    categories = await ingest.ensure_categories(session, GROUPS, SUBCATEGORIES)
     store = await ingest.ensure_store(session, chain, ref)
     run = await ingest.start_run(session, chain, store, run_date=RUN_DATE)
     result = ReaderResult(
@@ -67,7 +67,7 @@ async def _seed(session, reader_class, ref: StoreRef, rows: list[RawPriceRow]) -
         content_hash=None,
     )
     await ingest.save_result(
-        session, run, store, result, grouper=default_grouper(), groups=groups
+        session, run, store, result, grouper=default_grouper(), categories=categories
     )
     await session.flush()
 

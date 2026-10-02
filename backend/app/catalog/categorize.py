@@ -18,7 +18,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -42,7 +42,8 @@ class Keyword:
     значи нешто друго: „чај" не смее да фати „ЧАЈНИК".
     """
 
-    group_slug: str
+    # Може да е група или под-категорија; Grouper ја наоѓа групата.
+    category_slug: str
     text: str
     priority: int = 1
     is_negative: bool = False
@@ -61,8 +62,14 @@ class Keyword:
 
 @dataclass(frozen=True, slots=True)
 class Match:
-    """Исходот од совпаѓањето на еден производ."""
+    """Исходот од совпаѓањето на еден производ.
 
+    category_slug е најконкретното што го најдовме (под-категорија ако има,
+    инаку група), а group_slug е секогаш групата од прво ниво - по неа се
+    прават секциите на екран.
+    """
+
+    category_slug: str
     group_slug: str
     # Дали групата е најдена со речникот, или е резервната „Друго".
     matched: bool
@@ -85,6 +92,8 @@ class Grouper:
     fallback_slug: str = "drugo"
     # Кој извор победува при ист приоритет.
     prefer: Source = "description"
+    # Под-категорија -> нејзината група. Празно значи само едно ниво.
+    parent_of: Mapping[str, str] = field(default_factory=dict)
 
     # Клучен збор со предкомпајлиран шаблон - се компајлира еднаш, а потоа
     # се вртат десетки илјадници редови низ истите неколку стотини шаблони.
@@ -120,7 +129,7 @@ class Grouper:
         name_text = normalize_for_match(name)
         desc_text = normalize_for_match(description)
         if not name_text and not desc_text:
-            return Match(self.fallback_slug, matched=False)
+            return self._fallback()
 
         haystack = f"{desc_text} | {name_text}"
         weights = self._weights
@@ -131,14 +140,14 @@ class Grouper:
         excluded: dict[str, str] = {}
         for negative, pattern in self._negative:
             if pattern.search(haystack):
-                excluded.setdefault(negative.group_slug, negative.text)
+                excluded.setdefault(negative.category_slug, negative.text)
 
         # 2. Најдобриот позитивен збор од група што не е исклучена.
         best: tuple[int, int, int] | None = None
         best_match: Match | None = None
 
         for keyword, pattern in self._positive:
-            if keyword.group_slug in excluded:
+            if keyword.category_slug in excluded:
                 continue
             for source in ("description", "name"):
                 text = desc_text if source == "description" else name_text
@@ -148,7 +157,8 @@ class Grouper:
                 if best is None or score > best:
                     best = score
                     best_match = Match(
-                        group_slug=keyword.group_slug,
+                        category_slug=keyword.category_slug,
+                        group_slug=self.group_for(keyword.category_slug),
                         matched=True,
                         matched_keyword=keyword.text,
                         matched_in=source,  # type: ignore[arg-type]
@@ -158,10 +168,18 @@ class Grouper:
             return best_match
 
         # 3. Ништо не фати. Производот сè уште се прикажува, во „Друго".
+        return self._fallback(excluded_by=next(iter(excluded.values()), None))
+
+    def group_for(self, category_slug: str) -> str:
+        """Групата од прво ниво на која припаѓа една категорија."""
+        return self.parent_of.get(category_slug, category_slug)
+
+    def _fallback(self, excluded_by: str | None = None) -> Match:
         return Match(
-            self.fallback_slug,
+            category_slug=self.fallback_slug,
+            group_slug=self.fallback_slug,
             matched=False,
-            excluded_by=next(iter(excluded.values()), None),
+            excluded_by=excluded_by,
         )
 
     def group_many(self, rows: Iterable[tuple[str | None, str | None]]) -> list[Match]:
@@ -173,5 +191,11 @@ def build_grouper(
     *,
     fallback_slug: str = "drugo",
     prefer: Source = "description",
+    parent_of: Mapping[str, str] | None = None,
 ) -> Grouper:
-    return Grouper(tuple(keywords), fallback_slug=fallback_slug, prefer=prefer)
+    return Grouper(
+        tuple(keywords),
+        fallback_slug=fallback_slug,
+        prefer=prefer,
+        parent_of=dict(parent_of or {}),
+    )

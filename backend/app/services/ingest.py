@@ -116,20 +116,18 @@ async def ensure_store(session: AsyncSession, chain: Chain, ref: StoreRef) -> St
     return store
 
 
-async def ensure_groups(session: AsyncSession, groups) -> dict[str, ProductCategory]:
-    """Ги создава групите по употреба како категории од прво ниво.
+async def ensure_categories(
+    session: AsyncSession, groups, subcategories
+) -> dict[str, ProductCategory]:
+    """Ги создава двете нивоа категории и ги поврзува.
 
-    ProductCategory се користи и за групи и (подоцна) за ситни категории:
-    групите се без parent, ситните ќе бидат нејзини деца.
+    Групите се без parent; под-категориите се нивни деца. Истата табела
+    држи и двете нивоа, па додавање ново ниво не бара миграција.
     """
     existing = {
-        row.slug: row
-        for row in (
-            await session.scalars(
-                select(ProductCategory).where(ProductCategory.parent_id.is_(None))
-            )
-        ).all()
+        row.slug: row for row in (await session.scalars(select(ProductCategory))).all()
     }
+
     for slug, name, order in groups:
         row = existing.get(slug)
         if row is None:
@@ -139,6 +137,25 @@ async def ensure_groups(session: AsyncSession, groups) -> dict[str, ProductCateg
         else:
             row.name = name
             row.sort_order = order
+            row.parent_id = None
+    await session.flush()
+
+    for slug, name, parent_slug, order in subcategories:
+        parent = existing.get(parent_slug)
+        if parent is None:
+            log.warning("Под-категоријата %s бара непозната група %s", slug, parent_slug)
+            continue
+        row = existing.get(slug)
+        if row is None:
+            row = ProductCategory(
+                slug=slug, name=name, sort_order=order, parent_id=parent.id
+            )
+            session.add(row)
+            existing[slug] = row
+        else:
+            row.name = name
+            row.sort_order = order
+            row.parent_id = parent.id
     await session.flush()
     return existing
 
@@ -170,11 +187,12 @@ def _build_product(
     row: RawPriceRow,
     key: str,
     grouper: Grouper,
-    groups: dict[str, ProductCategory],
+    categories: dict[str, ProductCategory],
 ) -> Product:
     match = grouper.group_of(row.name, row.description)
     quantity = parse_quantity(row.name)
-    group = groups.get(match.group_slug)
+    # Се зачувува НАЈКОНКРЕТНАТА категорија; групата се чита преку parent.
+    category = categories.get(match.category_slug) or categories.get(match.group_slug)
 
     return Product(
         chain_id=chain_id,
@@ -185,7 +203,7 @@ def _build_product(
         package_unit=quantity.unit if quantity else None,
         base_quantity=quantity.base_quantity if quantity else None,
         base_unit=quantity.base_unit if quantity else None,
-        category_id=group.id if group else None,
+        category_id=category.id if category else None,
         category_status=(
             CategoryStatus.AUTO if match.matched else CategoryStatus.UNKNOWN
         ),
@@ -252,14 +270,14 @@ async def save_result(
     result: ReaderResult,
     *,
     grouper: Grouper | None = None,
-    groups: dict[str, ProductCategory] | None = None,
+    categories: dict[str, ProductCategory] | None = None,
 ) -> int:
     """Ги запишува редовите со попуст од едно читање. Враќа колку запишал."""
     grouper = grouper or default_grouper()
-    if groups is None:
-        from app.catalog.groups import GROUPS
+    if categories is None:
+        from app.catalog.groups import GROUPS, SUBCATEGORIES
 
-        groups = await ensure_groups(session, GROUPS)
+        categories = await ensure_categories(session, GROUPS, SUBCATEGORIES)
 
     discount_rows = result.discount_rows
 
@@ -283,7 +301,7 @@ async def save_result(
     for key, row in keyed:
         product = products.get(key) or new_products.get(key)
         if product is None:
-            product = _build_product(store.chain_id, row, key, grouper, groups)
+            product = _build_product(store.chain_id, row, key, grouper, categories)
             session.add(product)
             new_products[key] = product
         else:
@@ -384,7 +402,7 @@ async def ingest_store(
     *,
     run_date: date,
     grouper: Grouper,
-    groups: dict[str, ProductCategory],
+    categories: dict[str, ProductCategory],
 ) -> PricelistRun:
     """Чита и запишува една продавница. Грешките се запишуваат, не се фрлаат."""
     store = await ensure_store(session, chain, ref)
@@ -399,7 +417,7 @@ async def ingest_store(
 
     try:
         written = await save_result(
-            session, run, store, result, grouper=grouper, groups=groups
+            session, run, store, result, grouper=grouper, categories=categories
         )
     except Exception as error:
         await fail_run(session, run, error)

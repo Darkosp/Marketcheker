@@ -53,7 +53,9 @@
               {% elif row.valid_to %}
                 <span class="tag">до {{ row.valid_to.strftime("%d.%m") }}</span>
               {% endif %}
-              {% if row.product_description %}
+              {% if row.subcategory_name %}
+                <span class="tag tag-sub">{{ row.subcategory_name }}</span>
+              {% elif row.product_description %}
                 <span class="tag tag-desc">{{ row.product_description }}</span>
               {% endif %}
             </div>

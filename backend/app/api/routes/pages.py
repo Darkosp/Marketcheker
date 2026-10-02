@@ -21,6 +21,7 @@ from app.services.discounts import (
     available_stores,
     count_discounts,
     counts_by_group,
+    counts_by_subcategory,
     group_discounts,
     latest_run_date,
     run_summary,
@@ -117,6 +118,16 @@ async def index(
         single_day=ednodnevni,
     )
 
+    # Второ ниво копчиња: само кога е избрана група од прво ниво.
+    from app.catalog.groups import PARENT_OF
+
+    selected_group = PARENT_OF.get(grupa or "", grupa or "")
+    subcategories = (
+        await counts_by_subcategory(session, menu_filters, selected_group)
+        if selected_group
+        else []
+    )
+
     context = {
         "title": "Денешни попусти",
         "run_date": run_date,
@@ -127,11 +138,14 @@ async def index(
         "page_size": PAGE_SIZE,
         "groups": groups,
         "group_counts": await counts_by_group(session, menu_filters),
+        "subcategories": subcategories,
+        "selected_group": selected_group,
         "cities": await available_cities(session, run_date),
         "stores": await available_stores(session, run_date, grad),
         "selected": {
             "grad": grad or "",
             "grupa": grupa or "",
+            "grupa_root": selected_group,
             "market": set(market or []),
             "sortiraj": filters.sort_by.value,
             "lojalnost": lojalnost,

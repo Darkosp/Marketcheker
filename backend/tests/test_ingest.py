@@ -13,8 +13,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
 from app.catalog import default_grouper
-from app.catalog.groups import GROUPS
-from app.models import PricelistRun, PriceRow, Product, Store
+from app.catalog.groups import GROUPS, SUBCATEGORIES
+from app.models import PricelistRun, PriceRow, Product, ProductCategory, Store
 from app.models.enums import BaseUnit, CategoryStatus, PromoType, RunStatus
 from app.readers.base import RawPriceRow, ReaderResult, SourceUnavailable, StoreRef
 from app.services import ingest
@@ -83,7 +83,7 @@ def _result(rows: list[RawPriceRow], **kwargs) -> ReaderResult:
 async def _ingest(session, result=None, error=None):
     reader = _FakeReader(result=result, error=error)
     chain = await ingest.ensure_chain(session, _FakeReader)
-    groups = await ingest.ensure_groups(session, GROUPS)
+    categories = await ingest.ensure_categories(session, GROUPS, SUBCATEGORIES)
     run = await ingest.ingest_store(
         session,
         reader,
@@ -91,7 +91,7 @@ async def _ingest(session, result=None, error=None):
         _STORE,
         run_date=RUN_DATE,
         grouper=default_grouper(),
-        groups=groups,
+        categories=categories,
     )
     await session.flush()
     return run
@@ -161,14 +161,19 @@ async def test_unit_price_is_computed_for_comparison(db_session) -> None:
     assert row.unit_price_base == Decimal("1890")
 
 
-async def test_product_is_grouped_by_usage(db_session) -> None:
+async def test_product_gets_the_most_specific_category(db_session) -> None:
+    """Се зачувува под-категоријата; групата се чита преку нејзиниот родител."""
     await _ingest(db_session, _result([_row("НЕСКАФЕ КЛАСИК 100ГР")]))
 
     product = await db_session.scalar(
-        select(Product).options(selectinload(Product.category))
+        select(Product).options(
+            selectinload(Product.category).selectinload(ProductCategory.parent)
+        )
     )
     assert product.category is not None
-    assert product.category.slug == "pijaloci"
+    assert product.category.slug == "kafe"
+    assert product.category.parent is not None
+    assert product.category.parent.slug == "pijaloci"
     assert product.category_status is CategoryStatus.AUTO
 
 
