@@ -51,6 +51,21 @@ class Settings(BaseSettings):
         ZoneInfo(value)  # фрла грешка ако зоната не постои
         return value
 
+    @field_validator("scraper_user_agent")
+    @classmethod
+    def _validate_user_agent(cls, value: str) -> str:
+        """HTTP заглавијата мора да бидат ASCII.
+
+        Кирилица во SCRAPER_USER_AGENT би крашнала секое барање кон изворите,
+        и тоа дури при самото читање. Подобро апликацијата да не стартува.
+        """
+        if not value.isascii():
+            raise ValueError(
+                "SCRAPER_USER_AGENT смее да содржи само ASCII знаци "
+                "(HTTP заглавијата не поддржуваат кирилица)"
+            )
+        return value
+
     @property
     def tz(self) -> ZoneInfo:
         """Временска зона во која се смета „денешниот“ ценовник."""
