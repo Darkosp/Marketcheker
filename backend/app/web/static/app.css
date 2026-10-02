@@ -102,6 +102,7 @@ a { color: var(--accent); text-decoration-thickness: 1px; }
   border-radius: 7px;
 }
 
+.topnav { display: flex; gap: 14px; }
 .topnav a { font-size: 0.85rem; color: var(--muted); text-decoration: none; }
 .topnav a:hover { color: var(--accent); }
 
@@ -549,3 +550,79 @@ select:focus-visible,
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+
+/* ======================= статистика ======================= */
+.layout-single { grid-template-columns: minmax(0, 1fr); }
+
+.stat-block { margin: 0 0 26px; }
+
+.stat-title {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.stat-note { margin: 0 0 12px; font-size: 0.82rem; color: var(--muted); }
+
+.bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+
+.bar-row {
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.bar-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.bar-name { font-weight: 600; font-size: 0.95rem; }
+
+.bar-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-track {
+  height: 7px;
+  margin: 8px 0 7px;
+  background: var(--surface-2);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  max-width: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+}
+
+.bar-meta { font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
+.bar-meta strong { color: var(--text-soft); }
+
+.movement { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.move {
+  flex: 1 1 140px;
+  padding: 14px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.move-value {
+  display: block;
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.move-label { font-size: 0.8rem; color: var(--muted); }
+.move-up .move-value { color: var(--sale); }
+.move-down .move-value { color: var(--accent); }

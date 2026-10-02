@@ -29,6 +29,12 @@ from app.services.discounts import (
     run_summary,
 )
 from app.services.ingest import today_local
+from app.services.stats import (
+    chain_stats,
+    latest_stats_date,
+    price_movement,
+    top_stores,
+)
 from app.web.templates_env import templates
 
 router = APIRouter(tags=["pages"])
@@ -243,3 +249,37 @@ async def status_page(
         "total": await count_discounts(session, DiscountFilter(run_date=run_date)),
     }
     return templates.TemplateResponse(request, "status.html", context)
+
+
+@router.get(
+    "/statistika", response_class=HTMLResponse, summary="Кој маркет попушта најмногу"
+)
+async def stats_page(
+    request: Request, session: SessionDep, datum: date | None = None
+) -> HTMLResponse:
+    """Споредба на маркетите.
+
+    Главната мерка е УДЕЛОТ на попусти во асортиманот, не бројот: маркет
+    со 20.000 производи и 1.000 попусти не е подарежлив од маркет со
+    2.000 производи и 300 попусти. Тоа може да се пресмета само затоа што
+    се чува целиот асортиман, не само попустите.
+    """
+    run_date = datum or await latest_stats_date(session) or today_local()
+    chains = await chain_stats(session, run_date=run_date)
+
+    up, down, changes = await price_movement(session, days=30)
+
+    context = {
+        "title": "Статистика",
+        "run_date": run_date,
+        "today": today_local(),
+        "chains": chains,
+        "stores": await top_stores(session, run_date=run_date, limit=12),
+        "movement": {"up": up, "down": down, "total": changes},
+        "totals": {
+            "products": sum(row.products_total for row in chains),
+            "discounts": sum(row.discounts_total for row in chains),
+            "savings": sum((row.total_savings or 0) for row in chains),
+        },
+    }
+    return templates.TemplateResponse(request, "stats.html", context)
