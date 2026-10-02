@@ -16,6 +16,7 @@ from app.catalog import default_grouper
 from app.catalog.groups import GROUPS, SUBCATEGORIES
 from app.core.logging import get_logger
 from app.db.session import SessionLocal
+from app.models import Chain, ProductCategory
 from app.models.enums import RunStatus
 from app.readers import PoliteClient, get_reader_class
 from app.readers.base import PricelistReader, ReaderError
@@ -73,24 +74,78 @@ async def run_chain(
         refs = refs[:store_limit]
     outcome.stores = len(refs)
 
-    for ref in refs:
-        run = await ingest_store(
-            session,
-            reader,
-            chain,
-            ref,
-            run_date=run_date,
-            grouper=grouper,
-            categories=categories,
-        )
-        # Секоја продавница се потврдува одделно: ако следната падне,
-        # претходните остануваат запишани.
-        await session.commit()
+    chain_id = chain.id
+    category_slugs = {slug: row.id for slug, row in categories.items()}
+    await session.commit()
 
-        match run.status:
+    concurrency = max(1, reader.store_concurrency)
+    limit = asyncio.Semaphore(concurrency)
+
+    # Секоја напоредна задача добива СВОЈ клиент, за да паузата меѓу
+    # барања важи по врска. Со еден споделен клиент сите би чекале во ист
+    # ред и напоредноста не би дала ништо.
+    pool: list[PoliteClient] = [PoliteClient() for _ in range(concurrency)]
+    readers = [type(reader)(client) for client in pool]  # type: ignore[call-arg]
+    free: asyncio.Queue = asyncio.Queue()
+    for worker in readers:
+        free.put_nowait(worker)
+
+    async def one(ref) -> tuple[RunStatus, int]:
+        """Една продавница, во своја сесија.
+
+        Своја сесија е задолжително: AsyncSession не смее да се дели меѓу
+        напоредни задачи. Така и потврдувањето е по продавница - ако
+        следната падне, претходните остануваат запишани.
+        """
+        own_reader = await free.get()
+        try:
+            async with limit, SessionLocal() as own:
+                own_chain = await own.get(Chain, chain_id)
+                own_categories = {
+                    slug: await own.get(ProductCategory, cid)
+                    for slug, cid in category_slugs.items()
+                }
+                run = await ingest_store(
+                    own,
+                    own_reader,
+                    own_chain,
+                    ref,
+                    run_date=run_date,
+                    grouper=grouper,
+                    categories=own_categories,
+                )
+                status = run.status
+                discounts = run.rows_discount
+                message = run.error_message
+                await own.commit()
+        finally:
+            free.put_nowait(own_reader)
+
+        failed = status in (RunStatus.FAILED, RunStatus.STRUCTURE_CHANGED)
+        if failed and message and len(outcome.errors) < 5:
+            outcome.errors.append(f"{ref.name}: {message[:160]}")
+        return status, discounts
+
+    try:
+        results = await asyncio.gather(
+            *(one(ref) for ref in refs), return_exceptions=True
+        )
+    finally:
+        for client in pool:
+            await client.aclose()
+
+    for ref, result in zip(refs, results, strict=True):
+        if isinstance(result, BaseException):
+            outcome.failed += 1
+            if len(outcome.errors) < 5:
+                outcome.errors.append(f"{ref.name}: {result}")
+            continue
+
+        status, discounts = result
+        match status:
             case RunStatus.SUCCESS:
                 outcome.succeeded += 1
-                outcome.discounts += run.rows_discount
+                outcome.discounts += discounts
             case RunStatus.UNCHANGED:
                 outcome.unchanged += 1
             case RunStatus.EMPTY:
@@ -98,8 +153,6 @@ async def run_chain(
                 outcome.empty += 1
             case _:
                 outcome.failed += 1
-                if run.error_message and len(outcome.errors) < 5:
-                    outcome.errors.append(f"{ref.name}: {run.error_message[:160]}")
 
     return outcome
 

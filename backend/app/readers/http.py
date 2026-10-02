@@ -47,8 +47,11 @@ class PoliteClient:
             timeout=self._settings.scraper_timeout_seconds,
             follow_redirects=True,
         )
-        # Кога беше последното барање - за паузата меѓу барања.
+        # Кога беше последното барање - за паузата меѓу барања. Клучот го
+        # штити од напоредни задачи: без него сите читаат иста вредност,
+        # спијат исто време и пукаат заедно - паузата станува привид.
         self._last_request_at: float | None = None
+        self._turn = asyncio.Lock()
 
     async def __aenter__(self) -> Self:
         return self
@@ -67,13 +70,19 @@ class PoliteClient:
 
     # ------------------------------------------------------------------
     async def _wait_turn(self) -> None:
-        """Држи најмалку SCRAPER_DELAY_SECONDS меѓу две барања."""
+        """Држи најмалку SCRAPER_DELAY_SECONDS меѓу две барања.
+
+        Редот се чува со клуч, за да важи и кога повеќе задачи го делат
+        истиот клиент. Секој клиент е свој ред: ако синџирот чита повеќе
+        продавници напоредно, секоја има свој клиент и своја пауза.
+        """
         delay = self._settings.scraper_delay_seconds
-        if delay <= 0 or self._last_request_at is None:
-            return
-        elapsed = time.monotonic() - self._last_request_at
-        if elapsed < delay:
-            await asyncio.sleep(delay - elapsed)
+        async with self._turn:
+            if delay > 0 and self._last_request_at is not None:
+                elapsed = time.monotonic() - self._last_request_at
+                if elapsed < delay:
+                    await asyncio.sleep(delay - elapsed)
+            self._last_request_at = time.monotonic()
 
     def _retry_after(self, response: httpx.Response, attempt: int) -> float:
         """Паузата пред следниот обид: Retry-After ако го има, инаку растечка."""
@@ -97,7 +106,6 @@ class PoliteClient:
 
         for attempt in range(attempts):
             await self._wait_turn()
-            self._last_request_at = time.monotonic()
             try:
                 response = await self._client.request(method, url, **kwargs)
             except httpx.HTTPError as exc:

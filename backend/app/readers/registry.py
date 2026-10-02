@@ -9,6 +9,11 @@ from __future__ import annotations
 from app.readers.base import PricelistReader
 from app.readers.kam import KamReader
 from app.readers.kipper import KipperReader
+from app.readers.proverkanaceni import (
+    StokomakReader,
+    TamaroReader,
+    ZitoReader,
+)
 from app.readers.ramstore import RamstoreReader
 from app.readers.tinex import TinexReader
 from app.readers.vero import VeroReader
@@ -18,6 +23,9 @@ READERS: dict[str, type[PricelistReader]] = {
     RamstoreReader.chain_code: RamstoreReader,
     KipperReader.chain_code: KipperReader,
     KamReader.chain_code: KamReader,
+    ZitoReader.chain_code: ZitoReader,
+    StokomakReader.chain_code: StokomakReader,
+    TamaroReader.chain_code: TamaroReader,
     TinexReader.chain_code: TinexReader,
 }
 

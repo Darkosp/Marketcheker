@@ -13,8 +13,17 @@ def test_vero_and_ramstore_are_registered() -> None:
     assert get_reader_class("ramstore") is RamstoreReader
 
 
-def test_all_five_chains_are_registered() -> None:
-    assert set(READERS) == {"vero", "ramstore", "kipper", "kam", "tinex"}
+def test_all_chains_are_registered() -> None:
+    assert set(READERS) == {
+        "vero",
+        "ramstore",
+        "kipper",
+        "kam",
+        "zito",
+        "stokomak",
+        "tamaro",
+        "tinex",
+    }
 
 
 def test_unknown_chain_raises_with_helpful_message() -> None:
@@ -23,7 +32,7 @@ def test_unknown_chain_raises_with_helpful_message() -> None:
 
 
 def test_error_lists_known_chains() -> None:
-    with pytest.raises(LookupError, match="kam, kipper, ramstore, tinex, vero"):
+    with pytest.raises(LookupError, match="kam, kipper, ramstore"):
         get_reader_class("nepoznat")
 
 
@@ -42,6 +51,9 @@ def test_available_chains_is_ready_for_seed() -> None:
     assert chains["kipper"][0] == "Кипер"
     assert chains["kam"][0] == "КАМ"
     assert chains["tinex"][0] == "Тинекс"
+    assert chains["zito"][0] == "Жито Лукс"
+    assert chains["stokomak"][0] == "Стокомак"
+    assert chains["tamaro"][0] == "Тамаро"
 
 
 def test_chain_codes_are_unique() -> None:

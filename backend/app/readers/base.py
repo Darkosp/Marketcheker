@@ -144,6 +144,12 @@ class PricelistReader(ABC):
     chain_name: ClassVar[str]
     website: ClassVar[str]
 
+    # Колку продавници од ОВОЈ синџир се читаат напоредно. Стандардно една
+    # по една - тоа е најучтиво. Се крева само кај извори каде сериското
+    # читање е непрактично: платформата proverkanaceni.mk враќа најмногу
+    # 100 реда по барање, па една продавница бара околу 50 барања.
+    store_concurrency: ClassVar[int] = 1
+
     @abstractmethod
     async def discover_stores(self) -> list[StoreRef]:
         """Ја враќа тековната листа продавници од изворниот сајт.

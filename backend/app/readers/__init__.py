@@ -14,6 +14,7 @@ from app.readers.http import PoliteClient, content_hash
 from app.readers.kam import KamReader
 from app.readers.kipper import KipperReader
 from app.readers.promo import map_promo_type
+from app.readers.proverkanaceni import StokomakReader, TamaroReader, ZitoReader
 from app.readers.ramstore import RamstoreReader
 from app.readers.registry import (
     READERS,
@@ -38,10 +39,13 @@ __all__ = [
     "ReaderError",
     "ReaderResult",
     "SourceUnavailable",
+    "StokomakReader",
     "StoreRef",
     "StructureChanged",
+    "TamaroReader",
     "TinexReader",
     "VeroReader",
+    "ZitoReader",
     "available_chains",
     "content_hash",
     "default_chain_codes",

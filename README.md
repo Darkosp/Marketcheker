@@ -103,7 +103,11 @@ docs/            белешки за секој извор
 | Рамстор | `ramstore.com.mk/marketi/` | HTML, една табела | 36 |
 | Кипер | `kipper.mk` | JSON преку `admin-ajax.php` | 19 |
 | КАМ | `kam.mk/ceni-vo-marketi.nspx` | текстуален PDF (~157 стр.) | 86 |
+| Жито Лукс | `zito.proverkanaceni.mk` | HTML, `?org=…&page=…` | 94 |
+| Стокомак | `stokomak.proverkanaceni.mk` | истата платформа | 81 |
+| Тамаро | `tamaro.proverkanaceni.mk` | истата платформа | 13 |
 | Тинекс | `ceni.tinex.mk` | **изворот не работи** | — |
+| Алда | — | **нема објавен ценовник** | — |
 
 Детали за секој извор: [docs/izvori.md](docs/izvori.md).
 
