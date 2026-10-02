@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import re
 from datetime import date
+from decimal import Decimal
 from typing import Any, ClassVar
 from urllib.parse import urljoin
 
@@ -265,9 +266,13 @@ def _row_from_json(row: dict[str, Any]) -> RawPriceRow:
     if not name:
         raise ValueParseError("редот е без назив на артикал")
 
-    sale_price = parse_decimal(row.get("product_price"))
-    regular_price = parse_decimal(row.get("product_price_normal"))
+    # Кипер пишува „0" кога цената не е внесена - тоа е празно, не цена.
+    sale_price = _price_or_none(row.get("product_price"))
+    regular_price = _price_or_none(row.get("product_price_normal"))
     pct = parse_percent(row.get("product_price_discount_percentage"))
+    if sale_price is None:
+        # Без продажна цена нема ни попуст, колку и да пишува процентот.
+        pct = None
 
     # Попуст има само кога изворот даде процент; тогаш продажната цена Е
     # цената со попуст.
@@ -287,6 +292,12 @@ def _row_from_json(row: dict[str, Any]) -> RawPriceRow:
         valid_to=_date(row.get("promotion_datetime_to")),
         availability=None,
     )
+
+
+def _price_or_none(raw: Any) -> Decimal | None:
+    """Цена, при што 0 се смета за непополнето."""
+    value = parse_decimal(raw)
+    return value if value is not None and value > 0 else None
 
 
 def _unit_label(raw: Any) -> str | None:

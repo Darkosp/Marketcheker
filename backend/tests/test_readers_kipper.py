@@ -120,8 +120,19 @@ def test_parses_all_rows(products: dict) -> None:
 
 
 def test_discount_rows_are_recognised(products: dict) -> None:
+    """20 реда имаат процент, но 3 од нив имаат цена „0".
+
+    Тие три не се попусти - примерокот го содржи вистинскиот случај од
+    Кипер, каде производ без внесена цена добива попуст „-100%".
+    """
     rows, _, _ = parse_rows(products["data"])
-    assert len([row for row in rows if row.is_discount]) == 20
+    with_percent = [
+        r for r in products["data"] if r.get("product_price_discount_percentage")
+    ]
+    zero_priced = [r for r in with_percent if str(r.get("product_price")) == "0"]
+    assert len(with_percent) == 20
+    assert len(zero_priced) == 3
+    assert len([row for row in rows if row.is_discount]) == 17
 
 
 def test_discount_row_fields(products: dict) -> None:
@@ -138,9 +149,9 @@ def test_discount_row_fields(products: dict) -> None:
 
 def test_row_without_percent_is_not_discount(products: dict) -> None:
     rows, _, _ = parse_rows(products["data"])
-    plain = next(r for r in rows if not r.is_discount)
+    plain = next(r for r in rows if not r.is_discount and r.sale_price is not None)
     assert plain.discount_price is None
-    assert plain.sale_price is not None
+    assert plain.sale_price > 0
 
 
 def test_description_comes_from_subgroup(products: dict) -> None:
@@ -208,3 +219,35 @@ def test_unit_price_value_is_read(products: dict) -> None:
     with_unit = [row for row in rows if row.unit_price is not None]
     assert with_unit
     assert all(isinstance(row.unit_price, Decimal) for row in with_unit)
+
+
+# ---- цена нула ------------------------------------------------------------
+def test_zero_price_is_not_a_discount() -> None:
+    """Кипер праќа „0" со попуст „-100%" за производи без внесена цена.
+
+    Прикажано како попуст, тоа го праќа купувачот во маркет по нешто што
+    не постои за 0 денари.
+    """
+    rows, _, _ = parse_rows(
+        [
+            {
+                "product_name": "БОНИТО КЕЧАП БЛАГ 1Л",
+                "product_price": "0",
+                "product_price_normal": "79",
+                "product_price_discount_percentage": "-100%",
+            }
+        ]
+    )
+    row = rows[0]
+    assert row.is_discount is False
+    assert row.sale_price is None
+    assert row.discount_pct is None
+
+
+def test_zero_price_row_is_still_returned() -> None:
+    # Редот постои во ценовникот; само не е попуст. Не се крие тивко.
+    rows, skipped, _ = parse_rows(
+        [{"product_name": "НЕШТО", "product_price": "0", "product_price_normal": "0"}]
+    )
+    assert len(rows) == 1
+    assert skipped == 0

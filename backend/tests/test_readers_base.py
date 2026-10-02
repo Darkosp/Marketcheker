@@ -47,3 +47,12 @@ def test_result_counts_discount_rows_only() -> None:
     )
     assert result.rows_total == 3
     assert len(result.discount_rows) == 2
+
+
+def test_zero_discount_price_is_not_a_discount() -> None:
+    """Нула не е пополнета цена - важи за сите извори, не само за Кипер."""
+    assert _row(discount_price=Decimal("0")).is_discount is False
+
+
+def test_negative_price_is_not_a_discount() -> None:
+    assert _row(discount_price=Decimal("-5")).is_discount is False

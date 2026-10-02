@@ -86,8 +86,13 @@ class RawPriceRow:
 
     @property
     def is_discount(self) -> bool:
-        """Попуст = ред со пополнета цена со попуст."""
-        return self.discount_price is not None
+        """Попуст = ред со пополнета цена со попуст.
+
+        Нула НЕ е пополнета цена. Кипер праќа product_price „0" со попуст
+        „-100%" за производи без внесена цена; прикажано како попуст тоа би
+        го пратило купувачот во маркет по нешто што не постои за 0 денари.
+        """
+        return self.discount_price is not None and self.discount_price > 0
 
     @property
     def is_single_day(self) -> bool:
