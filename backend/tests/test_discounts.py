@@ -232,13 +232,22 @@ async def test_sort_by_price(seeded) -> None:
 
 
 async def test_sort_by_unit_price_answers_where_is_it_cheapest(seeded) -> None:
-    """Споредба по кг/л, за производи со различна грамажа."""
+    """Споредба по кг/л, за производи со различна грамажа.
+
+    Подредувањето е по единица, па по цена - во рамки на иста единица
+    редоследот мора да расте.
+    """
     rows = await list_discounts(
         seeded, DiscountFilter(run_date=RUN_DATE, sort_by=SortBy.UNIT_PRICE)
     )
-    with_unit = [row for row in rows if row.unit_price_base is not None]
-    prices = [row.unit_price_base for row in with_unit]
-    assert prices == sorted(prices)
+    per_unit: dict[str, list] = {}
+    for row in rows:
+        if row.unit_price_base is not None and row.base_unit:
+            per_unit.setdefault(row.base_unit, []).append(row.unit_price_base)
+    assert per_unit
+    for unit, prices in per_unit.items():
+        assert prices == sorted(prices), unit
+
     # Маслиново: 450 ден за 0.75 л = 600 ден/л
     olive = next(r for r in rows if r.product_name == "МАСЛО МАСЛИНОВО 0.75Л")
     assert olive.unit_price_base == Decimal("600")
@@ -296,3 +305,17 @@ async def test_available_stores_filtered_by_city(seeded) -> None:
 
 async def test_latest_run_date(seeded) -> None:
     assert await latest_run_date(seeded) == RUN_DATE
+
+
+async def test_unit_price_sort_does_not_mix_units(seeded) -> None:
+    """6 ден/м и 800 ден/кг не се споредливи.
+
+    Регресија: без групирање по единица, хартијата за печење (ден/м)
+    испаѓаше пред храната (ден/кг) во „најевтино по кг/л".
+    """
+    rows = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, sort_by=SortBy.UNIT_PRICE)
+    )
+    units = [row.base_unit for row in rows if row.base_unit]
+    # Истата единица мора да биде во еден непрекинат блок.
+    assert units == sorted(units)

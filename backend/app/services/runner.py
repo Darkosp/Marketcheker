@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 from datetime import date
 
@@ -94,40 +95,53 @@ async def run_chain(
     return outcome
 
 
+async def _run_one(code: str, *, run_date: date, store_limit: int | None) -> ChainOutcome:
+    """Еден синџир, со свој HTTP клиент и своја сесија кон базата."""
+    reader_class = get_reader_class(code)
+    client = PoliteClient()
+    reader = reader_class(client)  # type: ignore[call-arg]
+    try:
+        async with SessionLocal() as session:
+            outcome = await run_chain(
+                session, reader, run_date=run_date, store_limit=store_limit
+            )
+    except Exception as error:
+        log.exception("%s: читањето падна неочекувано", code)
+        return ChainOutcome(chain_code=code, errors=[str(error)[:200]])
+    finally:
+        await client.aclose()
+
+    log.info(
+        "%s: %d/%d продавници, %d попусти, %d непроменети, %d паднати",
+        code,
+        outcome.succeeded,
+        outcome.stores,
+        outcome.discounts,
+        outcome.unchanged,
+        outcome.failed,
+    )
+    return outcome
+
+
 async def run_all(
     *,
     run_date: date | None = None,
     chain_codes: list[str] | None = None,
     store_limit: int | None = None,
 ) -> list[ChainOutcome]:
-    """Го врти дневното читање за сите (или одбрани) синџири."""
+    """Го врти дневното читање за сите (или одбрани) синџири.
+
+    Синџирите се читаат напоредно: секој има свој HTTP клиент, па паузата
+    меѓу барања останува по домаќин - Веро не чека на Рамстор.
+
+    Веро има 21 страница по продавница, што со учтивата пауза е околу
+    минута по продавница; напоредно читањето трае колку најбавниот синџир,
+    не колку збирот.
+    """
     run_date = run_date or today_local()
     codes = chain_codes or list(READERS)
-    outcomes: list[ChainOutcome] = []
 
     log.info("Дневно читање за %s: %s", run_date, ", ".join(codes))
 
-    for code in codes:
-        reader_class = get_reader_class(code)
-        client = PoliteClient()
-        reader = reader_class(client)  # type: ignore[call-arg]
-        try:
-            async with SessionLocal() as session:
-                outcome = await run_chain(
-                    session, reader, run_date=run_date, store_limit=store_limit
-                )
-        finally:
-            await client.aclose()
-
-        outcomes.append(outcome)
-        log.info(
-            "%s: %d/%d продавници, %d попусти, %d непроменети, %d паднати",
-            code,
-            outcome.succeeded,
-            outcome.stores,
-            outcome.discounts,
-            outcome.unchanged,
-            outcome.failed,
-        )
-
-    return outcomes
+    tasks = [_run_one(code, run_date=run_date, store_limit=store_limit) for code in codes]
+    return list(await asyncio.gather(*tasks))

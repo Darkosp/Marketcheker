@@ -221,3 +221,15 @@ def test_keywords_are_ascii_free_of_stray_characters() -> None:
         has_cyrillic = any("Ѐ" <= ch <= "ӿ" for ch in text)
         has_latin = any("a" <= ch <= "z" for ch in text)
         assert not (has_cyrillic and has_latin), f"мешана азбука: {keyword.text!r}"
+
+
+def test_baking_paper_is_not_food(grouper) -> None:
+    """Регресија: „за печење" фаќаше и хартија и плехови за печење."""
+    assert (
+        grouper.group_of("АЛФОЛ ХАРТИЈА ЗА ПЕЧЕЊЕ 8М", "ХАРТИЈА ЗА ПЕЧЕЊЕ").group_slug
+        == "higiena-dom"
+    )
+
+
+def test_flour_for_baking_is_still_food(grouper) -> None:
+    assert grouper.group_of("БРАШНО ЗА ПЕЧЕЊЕ 1КГ", "БРАШНО").group_slug == "hrana"

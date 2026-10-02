@@ -154,7 +154,13 @@ def _ordering(filters: DiscountFilter):
         case SortBy.PRICE_ASC:
             return (PriceRow.discount_price.asc().nullslast(), Product.raw_name)
         case SortBy.UNIT_PRICE:
-            return (PriceRow.unit_price_base.asc().nullslast(), Product.raw_name)
+            # Прво по единица, па по цена. 6 ден/м и 800 ден/кг не се
+            # споредливи - мешањето ги ставаше метрите пред килограмите.
+            return (
+                Product.base_unit.asc().nullslast(),
+                PriceRow.unit_price_base.asc().nullslast(),
+                Product.raw_name,
+            )
         case SortBy.STORE:
             return (Chain.name, Store.name, Product.raw_name)
         case _:
