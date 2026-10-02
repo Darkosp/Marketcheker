@@ -78,6 +78,11 @@ MIN_CELLS = COL_REGULAR + 1
 # Зборови што мора да ги има заглавието; ако ги нема, форматот се сменил.
 HEADER_MARKERS = ("назив", "продажна", "единечна", "редовна")
 
+# Платформата го пишува ова во празна страница наместо да врати празна
+# табела. Тоа е крај на пагинацијата, не нечитлив ред - ако се брои како
+# прескокнат, табелата за квалитет на читањето лаже.
+END_MARKER = "нема податоци"
+
 MAX_SKIPPED_RATIO = 0.1
 MIN_SKIPPED_FOR_ALARM = 10
 
@@ -247,6 +252,8 @@ def parse_page(
     for tr in table.css("tr"):
         cells = [normalize_space(td.text()) for td in tr.css("td")]
         if not cells or not any(cells):
+            continue
+        if len(cells) == 1 and END_MARKER in cells[0].lower():
             continue
         try:
             rows.append(_row_from_cells(cells))

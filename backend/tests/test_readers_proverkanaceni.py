@@ -181,3 +181,44 @@ def test_concurrency_stays_polite() -> None:
     """
     for reader in (ZitoReader, StokomakReader, TamaroReader):
         assert reader.store_concurrency == 2
+
+
+def test_no_data_marker_is_not_a_skipped_row() -> None:
+    """Платформата пишува „Нема податоци за прикажување" во празна страница.
+
+    Тоа е крај на пагинацијата, не нечитлив ред. Избројано како
+    прескокнато, табелата за квалитет на читањето би лажела.
+    """
+    html = """
+    <table>
+      <tr><th>Назив на стока-производ</th><th>Продажна цена</th>
+          <th>Единечна цена</th><th>Редовна цена</th></tr>
+      <tr><td>Нема податоци за прикажување</td></tr>
+    </table>
+    """
+    rows, skipped, warnings, _ = parse_page(html, source="тест")
+    assert rows == []
+    assert skipped == 0
+    assert warnings == []
+
+
+def test_a_store_may_genuinely_have_one_product() -> None:
+    """Жито во „3 Струмица 4" објавува еден единствен производ.
+
+    Читачот застанува бидејќи страницата е пократка од бараната, не
+    поради грешка.
+    """
+    html = """
+    <table>
+      <tr><th>Назив на стока-производ</th><th>Продажна цена</th>
+          <th>Единечна цена</th><th>Опис на стока</th>
+          <th>Достапност во продажен објект</th><th>Редовна цена</th></tr>
+      <tr><td>ФИТ ЦИГАРИ ВИОЛА</td><td>140 ден.</td>
+          <td>1par = 140.00 ден.</td><td>Електронски цигари</td>
+          <td>Да</td><td>140 ден.</td></tr>
+    </table>
+    """
+    rows, skipped, _, had_header = parse_page(html, source="тест")
+    assert len(rows) == 1
+    assert skipped == 0
+    assert had_header is True

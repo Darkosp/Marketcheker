@@ -8,6 +8,11 @@
   <meta name="description" content="Денешните попусти од маркетите во Македонија, на едно место.">
   <title>{% block title %}{{ title|default("Marketchecker") }}{% endblock %}</title>
   <link rel="stylesheet" href="/static/app.css?v={{ asset_version() }}">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icon.svg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Marketchecker">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.4/htmx.min.js" defer></script>
 </head>
 <body>
@@ -23,6 +28,17 @@
   </header>
 
   {% block body %}{% endblock %}
+
+  <script>
+    // Service worker-от служи апликацијата да се отвора веднаш и да каже
+    // нешто разумно кога нема интернет. Регистрацијата е необврзна: ако
+    // прелистувачот не го поддржува, сè работи како порано.
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
+      });
+    }
+  </script>
 
   <footer class="footer">
     Цените се преземени од јавните ценовници на маркетите и може да се

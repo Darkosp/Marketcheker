@@ -364,6 +364,31 @@ async def latest_run_date(session: AsyncSession) -> date | None:
     )
 
 
+async def read_quality(
+    session: AsyncSession, run_date: date
+) -> list[tuple[str, int, int, int]]:
+    """(маркет, прочитани редови, прескокнати, продавници со прескокнати).
+
+    Прескокнатите редови се запишуваат при читањето, но досега никаде не
+    се гледаа: ако читач почне тивко да губи 5% од редовите, тоа не беше
+    видливо никому. Правилото е „никогаш тивок празен резултат" - ова го
+    затвора кругот и за делумната загуба.
+    """
+    query = (
+        select(
+            Chain.name,
+            func.coalesce(func.sum(PricelistRun.rows_total), 0),
+            func.coalesce(func.sum(PricelistRun.rows_skipped), 0),
+            func.count(PricelistRun.id).filter(PricelistRun.rows_skipped > 0),
+        )
+        .join(Chain, PricelistRun.chain_id == Chain.id)
+        .where(PricelistRun.run_date == run_date)
+        .group_by(Chain.name)
+        .order_by(func.sum(PricelistRun.rows_skipped).desc().nullslast())
+    )
+    return [tuple(row) for row in await session.execute(query)]  # type: ignore[misc]
+
+
 async def run_summary(
     session: AsyncSession, run_date: date
 ) -> list[tuple[str, str, int, int]]:
@@ -430,5 +455,6 @@ __all__ = [
     "counts_by_subcategory",
     "latest_run_date",
     "list_discounts",
+    "read_quality",
     "run_summary",
 ]

@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -57,6 +58,20 @@ def create_app() -> FastAPI:
     )
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+    @app.get("/sw.js", include_in_schema=False)
+    async def service_worker() -> FileResponse:
+        """Service worker-от се служи од КОРЕНОТ, не од /static/.
+
+        Опсегот на service worker е ограничен на патеката од која е
+        преземен: од /static/sw.js би покривал само /static/, значи ништо
+        корисно.
+        """
+        return FileResponse(
+            STATIC_DIR / "sw.js",
+            media_type="application/javascript",
+            headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
+        )
 
     app.include_router(health.router)
     app.include_router(pages.router)

@@ -26,6 +26,7 @@ from app.services.discounts import (
     counts_by_subcategory,
     latest_run_date,
     list_discounts,
+    read_quality,
     run_summary,
 )
 from app.services.ingest import today_local
@@ -250,6 +251,7 @@ async def status_page(
         "today": today_local(),
         "is_stale": is_stale,
         "runs": await run_summary(session, run_date),
+        "quality": await read_quality(session, run_date),
         "total": await count_discounts(session, DiscountFilter(run_date=run_date)),
     }
     return templates.TemplateResponse(request, "status.html", context)

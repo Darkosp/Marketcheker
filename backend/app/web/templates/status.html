@@ -51,8 +51,49 @@
       </table>
     {% endif %}
 
+    <section class="stat-block" style="margin-top: 26px;">
+      <h2 class="stat-title">Колку од ценовниците е прочитано</h2>
+      <p class="stat-note">
+        Ред што читачот не можел да го разбере се брои како прескокнат.
+        Неколку се нормални; многу значи дека изворот сменил формат.
+      </p>
+
+      {% if not quality %}
+        <p class="empty">Нема читања за овој ден.</p>
+      {% else %}
+        <table class="status-table">
+          <thead>
+            <tr>
+              <th>Маркет</th>
+              <th class="num">Прочитани редови</th>
+              <th class="num">Прескокнати</th>
+              <th class="num">Продавници</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for chain, total, skipped, stores in quality %}
+              <tr{% if skipped %} class="st-failed"{% endif %}>
+                <td>{{ chain }}</td>
+                <td class="num">{{ "{:,}".format(total).replace(",", ".") }}</td>
+                <td class="num">
+                  {% if skipped %}
+                    <strong>{{ "{:,}".format(skipped).replace(",", ".") }}</strong>
+                    ({{ "%.2f"|format(skipped / total * 100 if total else 0) }}%)
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td class="num">{{ stores or "—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </section>
+
     <p class="subtitle" style="margin-top: 16px;">
-      <a href="/">← назад на попустите</a>
+      <a href="/">← назад на попустите</a> ·
+      <a href="/statistika">статистика</a>
     </p>
   </main>
 </div>
