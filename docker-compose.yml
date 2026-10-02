@@ -51,5 +51,24 @@ services:
       retries: 5
       start_period: 20s
 
+  scheduler:
+    # Дневното читање во 11:00 (Europe/Skopje). Одделен контејнер, за да
+    # не се удвои ако api еден ден се врти во повеќе копии.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: dev
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+    command: ["python", "-m", "app.scheduler"]
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+
 volumes:
   pgdata:
