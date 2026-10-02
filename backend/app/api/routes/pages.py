@@ -121,6 +121,22 @@ def _clamp_page_size(value: int) -> int:
     return value if value in PAGE_SIZES else DEFAULT_PAGE_SIZE
 
 
+def _store_ids(raw: list[str] | None) -> list[int]:
+    """Ги чита ид-овата на продавници од URL-то.
+
+    Примаат се СТРИНГОВИ намерно: опцијата „сите маркети" праќа празна
+    вредност, а со list[int] FastAPI враќаше 422 на СЕКОЕ барање од
+    формуларот - паѓаа и филтрите, и подредувањето, и страниците.
+    URL-то може да дојде и рачно напишано, па нечитливото се игнорира.
+    """
+    ids: list[int] = []
+    for value in raw or []:
+        text = value.strip()
+        if text.isdigit():
+            ids.append(int(text))
+    return ids
+
+
 @router.get("/", response_class=HTMLResponse, summary="Денешни попусти")
 async def index(
     request: Request,
@@ -128,7 +144,7 @@ async def index(
     datum: date | None = None,
     grad: str | None = None,
     grupa: str | None = None,
-    market: list[int] | None = Query(default=None),
+    market: list[str] | None = Query(default=None),
     sortiraj: str = SortBy.DISCOUNT_PCT.value,
     lojalnost: bool = True,
     ednodnevni: bool = False,
@@ -143,7 +159,7 @@ async def index(
         sort_by = SortBy.DISCOUNT_PCT
 
     page_size = _clamp_page_size(po_strana)
-    stores = list(market or [])
+    stores = _store_ids(market)
 
     def build(group_slug: str | None, *, limit: int, offset: int) -> DiscountFilter:
         return DiscountFilter(

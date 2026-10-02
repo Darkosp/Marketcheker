@@ -341,15 +341,25 @@ async def counts_by_group(
     session: AsyncSession, filters: DiscountFilter
 ) -> list[tuple[str, str, int]]:
     """(slug, име, број) по група - за менито, без вчитување на редовите."""
-    # Се брои по ГРУПА: под-категориите се собираат во својот родител.
+    # Се брои по ГРУПА, врз СПОЕНИ редови - истото спојување како во
+    # списокот. Инаку копчето вели „Храна 31.721" а кликнато дава 1.772.
     slug = func.coalesce(Group.slug, Category.slug)
     name = func.coalesce(Group.name, Category.name)
     order = func.coalesce(Group.sort_order, Category.sort_order)
 
+    merged = (
+        _join_and_filter(
+            select(slug.label("slug"), name.label("name"), order.label("sort_order")),
+            filters,
+        )
+        .group_by(*_GROUPING, slug, name, order)
+        .subquery()
+    )
+
     query = (
-        _join_and_filter(select(slug, name, func.count(PriceRow.id), order), filters)
-        .group_by(slug, name, order)
-        .order_by(order)
+        select(merged.c.slug, merged.c.name, func.count(), merged.c.sort_order)
+        .group_by(merged.c.slug, merged.c.name, merged.c.sort_order)
+        .order_by(merged.c.sort_order)
     )
     rows = await session.execute(query)
     return [(s or "drugo", n or "Друго", count) for s, n, count, _ in rows]
@@ -364,19 +374,24 @@ async def counts_by_subcategory(
     нејзините под-категории.
     """
     inner = replace(filters, group_slug=group_slug)
-    query = (
+    merged = (
         _join_and_filter(
             select(
-                Category.slug,
-                Category.name,
-                func.count(PriceRow.id),
-                Category.sort_order,
+                Category.slug.label("slug"),
+                Category.name.label("name"),
+                Category.sort_order.label("sort_order"),
             ),
             inner,
         )
         .where(Category.parent_id.isnot(None))
-        .group_by(Category.slug, Category.name, Category.sort_order)
-        .order_by(Category.sort_order)
+        .group_by(*_GROUPING, Category.slug, Category.name, Category.sort_order)
+        .subquery()
+    )
+
+    query = (
+        select(merged.c.slug, merged.c.name, func.count(), merged.c.sort_order)
+        .group_by(merged.c.slug, merged.c.name, merged.c.sort_order)
+        .order_by(merged.c.sort_order)
     )
     rows = await session.execute(query)
     return [(slug, name, count) for slug, name, count, _ in rows]

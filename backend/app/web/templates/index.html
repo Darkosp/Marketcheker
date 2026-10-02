@@ -12,6 +12,9 @@
   {# Промена на филтер враќа на прва страница; копчињата за страници го
      препишуваат ова поле пред да го испратат формуларот. #}
   <input type="hidden" name="strana" id="strana" value="1">
+  {# Избраната категорија живее во скриено поле, не во името на копчето.
+     Инаку страничењето ја губи: копчето за „следна" не носи grupa. #}
+  <input type="hidden" name="grupa" id="grupa" value="{{ selected.grupa }}">
 
   <!-- ===================== странична лента ===================== -->
   <aside class="sidebar">
@@ -68,13 +71,19 @@
           </select>
         </label>
 
+        {# Неоштиклирано поле прелистувачот воопшто не го праќа, па
+           серверот ја земаше стандардната вредност и исклучувањето немаше
+           ефект. Скриеното „false" оди секогаш; кога е штиклирано, по него
+           оди „true" и последната вредност победува. #}
         <label class="switch">
+          <input type="hidden" name="lojalnost" value="false">
           <input type="checkbox" name="lojalnost" value="true"
                  {% if selected.lojalnost %}checked{% endif %}>
           <span>Попусти со картичка за лојалност</span>
         </label>
 
         <label class="switch">
+          <input type="hidden" name="ednodnevni" value="false">
           <input type="checkbox" name="ednodnevni" value="true"
                  {% if selected.ednodnevni %}checked{% endif %}>
           <span>Само еднодневни попусти</span>
@@ -117,12 +126,19 @@
   syncPanel();
   wide.addEventListener("change", syncPanel);
 
-  // Копчињата за страници го поставуваат скриеното поле пред праќање.
+  // Копчињата ги поставуваат скриените полиња пред праќање.
   document.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-strana]");
+    const button = event.target.closest("[data-strana], [data-grupa]");
     if (!button) return;
-    const field = document.getElementById("strana");
-    if (field) field.value = button.dataset.strana;
+
+    if (button.dataset.grupa !== undefined) {
+      const grupa = document.getElementById("grupa");
+      if (grupa) grupa.value = button.dataset.grupa;
+    }
+    if (button.dataset.strana !== undefined) {
+      const strana = document.getElementById("strana");
+      if (strana) strana.value = button.dataset.strana;
+    }
   });
 
   // Промена на филтер секогаш враќа на прва страница.
