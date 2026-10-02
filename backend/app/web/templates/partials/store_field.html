@@ -1,0 +1,21 @@
+{# Изборот на маркет. Списокот зависи од избраниот град, па при HTMX
+   барање се враќа и одделно (out-of-band) - инаку страничната лента
+   останува со маркетите од претходниот град. #}
+<label class="field" id="market-field"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <span class="field-label">
+    Маркет
+    {% if selected.grad %}
+      <span class="field-hint">во {{ selected.grad_name }}</span>
+    {% endif %}
+  </span>
+  <select name="market">
+    <option value="">
+      {% if selected.grad %}сите маркети во градот{% else %}сите маркети{% endif %}
+    </option>
+    {% for store_id, chain, store, count in stores %}
+      <option value="{{ store_id }}" {% if store_id in selected.market %}selected{% endif %}>
+        {{ chain }} · {{ store }} ({{ count }})
+      </option>
+    {% endfor %}
+  </select>
+</label>

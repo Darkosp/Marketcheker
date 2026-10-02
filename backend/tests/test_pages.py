@@ -141,3 +141,34 @@ def test_has_previous_and_next() -> None:
     assert not first.has_previous
     last = Pagination(page=10, page_size=10, total=100)
     assert not last.has_next
+
+
+# ==========================================================================
+# Списокот маркети следи по избраниот град
+# ==========================================================================
+async def test_market_field_comes_back_with_htmx(client: AsyncClient) -> None:
+    """Регресија: списокот маркети се пресметуваше по град на серверот, но
+    HTMX менуваше само резултатите - страничната лента остануваше со
+    маркетите од претходниот град.
+    """
+    partial = (await client.get("/?grad=skopje", headers={"HX-Request": "true"})).text
+    assert 'id="market-field"' in partial
+    assert "hx-swap-oob" in partial
+
+
+async def test_market_field_is_in_the_full_page_too(client: AsyncClient) -> None:
+    html = (await client.get("/")).text
+    assert 'id="market-field"' in html
+    # Во полна страница нема out-of-band ознака на тоа поле.
+    assert 'id="market-field" hx-swap-oob' not in html
+
+
+async def test_city_name_is_shown_next_to_the_market_label(
+    client: AsyncClient,
+) -> None:
+    html = (await client.get("/?grad=skopje")).text
+    assert "field-hint" in html
+
+
+async def test_no_city_means_no_hint(client: AsyncClient) -> None:
+    assert "field-hint" not in (await client.get("/")).text

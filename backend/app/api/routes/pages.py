@@ -201,6 +201,9 @@ async def index(
         else []
     )
 
+    cities = await available_cities(session, run_date)
+    city_names = {slug: name for slug, name, _ in cities}
+
     context = {
         "title": "Денешни попусти",
         "run_date": run_date,
@@ -212,10 +215,11 @@ async def index(
         "group_counts": await counts_by_group(session, menu_filters),
         "subcategories": subcategories,
         "selected_group": selected_group,
-        "cities": await available_cities(session, run_date),
+        "cities": cities,
         "stores": await available_stores(session, run_date, grad),
         "selected": {
             "grad": grad or "",
+            "grad_name": city_names.get(grad or "", ""),
             "grupa": grupa or "",
             "grupa_root": selected_group,
             "market": set(stores),

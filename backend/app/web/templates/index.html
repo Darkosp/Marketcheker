@@ -37,17 +37,7 @@
           </select>
         </label>
 
-        <label class="field">
-          <span class="field-label">Маркет</span>
-          <select name="market">
-            <option value="">сите маркети</option>
-            {% for store_id, chain, store, count in stores %}
-              <option value="{{ store_id }}" {% if store_id in selected.market %}selected{% endif %}>
-                {{ chain }} · {{ store }} ({{ count }})
-              </option>
-            {% endfor %}
-          </select>
-        </label>
+        {% include "partials/store_field.html" %}
 
         <label class="field">
           <span class="field-label">Подреди по</span>
@@ -144,8 +134,15 @@
   // Промена на филтер секогаш враќа на прва страница.
   document.addEventListener("change", (event) => {
     if (!event.target.closest(".panel-body, .chips")) return;
-    const field = document.getElementById("strana");
-    if (field) field.value = "1";
+    const strana = document.getElementById("strana");
+    if (strana) strana.value = "1";
+
+    // Нов град значи друг список маркети; претходно избраниот маркет
+    // веројатно не е во него, па изборот се поништува пред праќањето.
+    if (event.target.name === "grad") {
+      const market = document.querySelector('select[name="market"]');
+      if (market) market.value = "";
+    }
   });
 </script>
 {% endblock %}
