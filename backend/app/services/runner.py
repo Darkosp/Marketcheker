@@ -10,13 +10,14 @@ import asyncio
 from dataclasses import dataclass, field
 from datetime import date
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.catalog import default_grouper
 from app.catalog.groups import GROUPS, SUBCATEGORIES
 from app.core.logging import get_logger
 from app.db.session import SessionLocal
-from app.models import Chain, ProductCategory
+from app.models import Chain, PricelistRun, ProductCategory, Store
 from app.models.enums import RunStatus
 from app.readers import PoliteClient, get_reader_class
 from app.readers.base import PricelistReader, ReaderError
@@ -41,6 +42,8 @@ class ChainOutcome:
     failed: int = 0
     unchanged: int = 0
     empty: int = 0
+    # Продавници прескокнати зашто се веќе прочитани тој ден.
+    skipped: int = 0
     discounts: int = 0
     errors: list[str] = field(default_factory=list)
 
@@ -49,14 +52,43 @@ class ChainOutcome:
         return self.failed == 0 and not self.errors
 
 
+async def _already_read(session: AsyncSession, chain_id: int, run_date: date) -> set[str]:
+    """external_id на продавниците што се веќе прочитани тој ден.
+
+    Се брои секое читање што стигнало до крај: успешно, непроменето или
+    без цени. Паднатите НЕ се бројат - нив вреди да се обидеме повторно.
+    """
+    rows = await session.scalars(
+        select(Store.external_id)
+        .join(PricelistRun, PricelistRun.store_id == Store.id)
+        .where(
+            PricelistRun.chain_id == chain_id,
+            PricelistRun.run_date == run_date,
+            PricelistRun.status.in_(
+                (RunStatus.SUCCESS, RunStatus.UNCHANGED, RunStatus.EMPTY)
+            ),
+        )
+    )
+    return set(rows)
+
+
 async def run_chain(
     session: AsyncSession,
     reader: PricelistReader,
     *,
     run_date: date,
     store_limit: int | None = None,
+    resume: bool = True,
 ) -> ChainOutcome:
-    """Чита еден синџир: откриј продавници, па прочитај ги една по една."""
+    """Чита еден синџир.
+
+    resume=True (стандардно) ги прескокнува продавниците што веќе се
+    прочитани тој ден. Тоа го прави читањето прекинливо: ако падне на
+    половина - заспана машина, рестарт, прекин на мрежа - следното пуштање
+    продолжува оттаму наместо да почне од нула.
+
+    За свесно повторно читање на целиот синџир: resume=False.
+    """
     outcome = ChainOutcome(chain_code=reader.chain_code)
     chain = await ensure_chain(session, type(reader))
     categories = await ensure_categories(session, GROUPS, SUBCATEGORIES)
@@ -73,6 +105,20 @@ async def run_chain(
     if store_limit is not None:
         refs = refs[:store_limit]
     outcome.stores = len(refs)
+
+    if resume:
+        done = await _already_read(session, chain.id, run_date)
+        if done:
+            before = len(refs)
+            refs = [ref for ref in refs if ref.external_id not in done]
+            outcome.skipped = before - len(refs)
+            if outcome.skipped:
+                log.info(
+                    "%s: прескокнувам %d веќе прочитани продавници за %s",
+                    reader.chain_code,
+                    outcome.skipped,
+                    run_date,
+                )
 
     chain_id = chain.id
     category_slugs = {slug: row.id for slug, row in categories.items()}
@@ -157,7 +203,9 @@ async def run_chain(
     return outcome
 
 
-async def _run_one(code: str, *, run_date: date, store_limit: int | None) -> ChainOutcome:
+async def _run_one(
+    code: str, *, run_date: date, store_limit: int | None, resume: bool
+) -> ChainOutcome:
     """Еден синџир, со свој HTTP клиент и своја сесија кон базата."""
     reader_class = get_reader_class(code)
     client = PoliteClient()
@@ -165,7 +213,11 @@ async def _run_one(code: str, *, run_date: date, store_limit: int | None) -> Cha
     try:
         async with SessionLocal() as session:
             outcome = await run_chain(
-                session, reader, run_date=run_date, store_limit=store_limit
+                session,
+                reader,
+                run_date=run_date,
+                store_limit=store_limit,
+                resume=resume,
             )
     except Exception as error:
         log.exception("%s: читањето падна неочекувано", code)
@@ -174,12 +226,13 @@ async def _run_one(code: str, *, run_date: date, store_limit: int | None) -> Cha
         await client.aclose()
 
     log.info(
-        "%s: %d/%d продавници, %d попусти, %d непроменети, %d паднати",
+        "%s: %d/%d продавници, %d попусти, %d непроменети, %d прескокнати, %d паднати",
         code,
         outcome.succeeded,
         outcome.stores,
         outcome.discounts,
         outcome.unchanged,
+        outcome.skipped,
         outcome.failed,
     )
     return outcome
@@ -190,6 +243,7 @@ async def run_all(
     run_date: date | None = None,
     chain_codes: list[str] | None = None,
     store_limit: int | None = None,
+    resume: bool = True,
 ) -> list[ChainOutcome]:
     """Го врти дневното читање за сите (или одбрани) синџири.
 
@@ -206,5 +260,8 @@ async def run_all(
 
     log.info("Дневно читање за %s: %s", run_date, ", ".join(codes))
 
-    tasks = [_run_one(code, run_date=run_date, store_limit=store_limit) for code in codes]
+    tasks = [
+        _run_one(code, run_date=run_date, store_limit=store_limit, resume=resume)
+        for code in codes
+    ]
     return list(await asyncio.gather(*tasks))

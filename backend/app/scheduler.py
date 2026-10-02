@@ -56,14 +56,16 @@ MISFIRE_GRACE_SECONDS = 6 * 60 * 60
 DONE_STATUSES = (RunStatus.SUCCESS, RunStatus.UNCHANGED, RunStatus.EMPTY)
 
 
-def should_catch_up(now: datetime, *, scheduled: time, already_read: bool) -> bool:
+def should_catch_up(now: datetime, *, scheduled: time) -> bool:
     """Дали да се чита веднаш штом закажувачот се крене.
 
-    Да, само ако закажаниот час веќе поминал денес а читањето го нема.
+    Да, ако закажаниот час веќе поминал денес. Порано тука се проверуваше
+    и дали веќе има читање, за да не се повтори - но сега читањето ги
+    прескокнува веќе прочитаните продавници, па повторувањето е евтино и
+    го ДОВРШУВА денот ако претходното читање паднало на половина.
+
     Чиста функција - затоа е тестирана без часовник и без база.
     """
-    if already_read:
-        return False
     return now.timetz().replace(tzinfo=None) >= scheduled
 
 
@@ -152,16 +154,16 @@ async def main() -> int:
         settings.scheduler_timezone,
     )
 
-    now = datetime.now(settings.tz)
-    already = await has_successful_run(today_local())
-    if should_catch_up(now, scheduled=scheduled, already_read=already):
+    if should_catch_up(datetime.now(settings.tz), scheduled=scheduled):
+        done = await has_successful_run(today_local())
         log.info(
-            "Закажаниот час (%s) веќе помина, а за денес нема читање - читам сега",
+            "Закажаниот час (%s) веќе помина - %s",
             scheduled.strftime("%H:%M"),
+            "довршувам што останало" if done else "читам сега",
         )
         await daily_read()
-    elif already:
-        log.info("За денес веќе има читање; чекам го следниот термин")
+    else:
+        log.info("Чекам го термин во %s", scheduled.strftime("%H:%M"))
 
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()

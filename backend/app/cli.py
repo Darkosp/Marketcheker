@@ -33,6 +33,11 @@ def _parse(argv: list[str]) -> argparse.Namespace:
     read = sub.add_parser("citaj", help="прочитај ги ценовниците и запиши попустите")
     read.add_argument("--datum", type=date.fromisoformat, default=None)
     read.add_argument(
+        "--odnovo",
+        action="store_true",
+        help="прочитај ги сите продавници одново, и веќе прочитаните денес",
+    )
+    read.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -58,6 +63,7 @@ async def _read(args: argparse.Namespace) -> int:
         run_date=args.datum,
         chain_codes=chosen or None,
         store_limit=args.limit,
+        resume=not args.odnovo,
     )
     print()
     failed = 0
@@ -67,7 +73,7 @@ async def _read(args: argparse.Namespace) -> int:
             f"{mark} {outcome.chain_code}: {outcome.succeeded}/{outcome.stores} "
             f"продавници, {outcome.discounts} попусти, "
             f"{outcome.unchanged} непроменети, {outcome.empty} без цени, "
-            f"{outcome.failed} паднати"
+            f"{outcome.skipped} прескокнати, {outcome.failed} паднати"
         )
         for error in outcome.errors:
             print(f"      {error}")

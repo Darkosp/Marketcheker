@@ -36,33 +36,35 @@ def _settings(**overrides) -> Settings:
 def test_catches_up_when_started_after_the_hour() -> None:
     """Контејнерот бил спуштен во 11:00, се крева во 15:00 - читај веднаш."""
     now = datetime(2026, 10, 2, 15, 0, tzinfo=SKOPJE)
-    assert should_catch_up(now, scheduled=ELEVEN, already_read=False) is True
+    assert should_catch_up(now, scheduled=ELEVEN) is True
 
 
-def test_does_not_catch_up_if_already_read_today() -> None:
+def test_catches_up_even_if_something_was_already_read() -> None:
+    """Читањето ги прескокнува веќе прочитаните, па повторувањето го
+    ДОВРШУВА денот ако претходното паднало на половина."""
     now = datetime(2026, 10, 2, 15, 0, tzinfo=SKOPJE)
-    assert should_catch_up(now, scheduled=ELEVEN, already_read=True) is False
+    assert should_catch_up(now, scheduled=ELEVEN) is True
 
 
 def test_does_not_catch_up_before_the_hour() -> None:
     """Во 09:00 нема што да се надокнадува - термин во 11:00 допрва доаѓа."""
     now = datetime(2026, 10, 2, 9, 0, tzinfo=SKOPJE)
-    assert should_catch_up(now, scheduled=ELEVEN, already_read=False) is False
+    assert should_catch_up(now, scheduled=ELEVEN) is False
 
 
 def test_catches_up_exactly_at_the_hour() -> None:
     now = datetime(2026, 10, 2, 11, 0, tzinfo=SKOPJE)
-    assert should_catch_up(now, scheduled=ELEVEN, already_read=False) is True
+    assert should_catch_up(now, scheduled=ELEVEN) is True
 
 
 def test_catches_up_one_minute_after() -> None:
     now = datetime(2026, 10, 2, 11, 1, tzinfo=SKOPJE)
-    assert should_catch_up(now, scheduled=ELEVEN, already_read=False) is True
+    assert should_catch_up(now, scheduled=ELEVEN) is True
 
 
 def test_does_not_catch_up_one_minute_before() -> None:
     now = datetime(2026, 10, 2, 10, 59, tzinfo=SKOPJE)
-    assert should_catch_up(now, scheduled=ELEVEN, already_read=False) is False
+    assert should_catch_up(now, scheduled=ELEVEN) is False
 
 
 # ---- поставеност на работата ----------------------------------------------
