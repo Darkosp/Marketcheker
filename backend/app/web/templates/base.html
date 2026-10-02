@@ -3,22 +3,29 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0f766e">
+  <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="Денешните попусти од маркетите во Македонија, на едно место.">
   <title>{% block title %}{{ title|default("Marketchecker") }}{% endblock %}</title>
-  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/app.css?v={{ asset_version() }}">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.4/htmx.min.js" defer></script>
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/">Marketchecker</a>
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true">%</span>
+      Marketchecker
+    </a>
+    <nav class="topnav">
+      <a href="/sostojba">состојба</a>
+    </nav>
   </header>
 
-  <main id="content">
-    {% block content %}{% endblock %}
-  </main>
+  {% block body %}{% endblock %}
 
   <footer class="footer">
-    <small>Цените се од јавните ценовници на маркетите. Проверете на лице место.</small>
+    Цените се преземени од јавните ценовници на маркетите и може да се
+    разликуваат на лице место.
   </footer>
 </body>
 </html>

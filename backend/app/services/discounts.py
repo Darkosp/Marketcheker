@@ -97,6 +97,23 @@ class DiscountRow:
     # Под-категоријата, ако производот стигнал до второ ниво.
     subcategory_slug: str | None = None
     subcategory_name: str | None = None
+    # Истиот производ по иста цена често е на попуст во десетици
+    # продавници. Се прикажува еднаш, со број колку се.
+    store_count: int = 1
+    chain_count: int = 1
+
+    @property
+    def where_label(self) -> str:
+        """Каде важи попустот, во една линија.
+
+        Една продавница се именува; повеќе се бројат, зашто списокот од 22
+        имиња не му помага никому.
+        """
+        if self.store_count <= 1:
+            return f"{self.chain_name} · {self.store_name}"
+        if self.chain_count > 1:
+            return f"{self.store_count} продавници во {self.chain_count} маркети"
+        return f"{self.chain_name} · {self.store_count} продавници"
 
     @property
     def is_loyalty_only(self) -> bool:
@@ -195,22 +212,101 @@ def _ordering(filters: DiscountFilter):
             return (Product.raw_name,)
 
 
+# Колоните по кои се спојуваат редовите. Цената е меѓу нив намерно:
+# ист производ по РАЗЛИЧНА цена останува одделен запис, за да не измислиме
+# цена што ја нема никаде.
+_GROUPING = (
+    Product.id,
+    Category.id,
+    Group.id,
+    PriceRow.discount_price,
+    PriceRow.regular_price,
+    PriceRow.discount_pct,
+    PriceRow.unit_price_base,
+    PriceRow.promo_type,
+    PriceRow.valid_from,
+    PriceRow.valid_to,
+    PriceRow.is_single_day,
+)
+
+
+def _aggregated_ordering(filters: DiscountFilter):
+    """Подредување врз споените редови.
+
+    Колоните се истите како кај единечните редови - сите се во GROUP BY,
+    па смеат да се користат директно.
+    """
+    match filters.sort_by:
+        case SortBy.DISCOUNT_PCT:
+            return (PriceRow.discount_pct.desc().nullslast(), Product.raw_name)
+        case SortBy.PRICE_ASC:
+            return (PriceRow.discount_price.asc().nullslast(), Product.raw_name)
+        case SortBy.UNIT_PRICE:
+            return (
+                Product.base_unit.asc().nullslast(),
+                PriceRow.unit_price_base.asc().nullslast(),
+                Product.raw_name,
+            )
+        case SortBy.STORE:
+            return (func.min(Chain.name), Product.raw_name)
+        case _:
+            return (Product.raw_name,)
+
+
+def _aggregate_query(filters: DiscountFilter) -> Select:
+    """Еден ред по производ и цена, со број на продавници.
+
+    Без ова списокот е преполн со повторување: ист попуст важи во сите 36
+    продавници на Рамстор, па корисникот ја гледа истата картичка 36 пати.
+    """
+    return _join_and_filter(
+        select(
+            Product.id.label("product_id"),
+            Product.raw_name,
+            Product.raw_description,
+            Product.package_value,
+            Product.package_unit,
+            Product.base_unit,
+            PriceRow.regular_price,
+            PriceRow.discount_price,
+            PriceRow.discount_pct,
+            PriceRow.unit_price_base,
+            PriceRow.promo_type,
+            PriceRow.valid_from,
+            PriceRow.valid_to,
+            PriceRow.is_single_day,
+            Category.slug.label("category_slug"),
+            Category.name.label("category_name"),
+            Group.slug.label("group_slug"),
+            Group.name.label("group_name"),
+            func.count(func.distinct(PriceRow.store_id)).label("store_count"),
+            func.count(func.distinct(Store.chain_id)).label("chain_count"),
+            func.min(Chain.name).label("chain_name"),
+            func.min(Store.name).label("store_name"),
+            func.min(City.name).label("city_name"),
+            func.min(PriceRow.promo_type_raw).label("promo_type_raw"),
+            func.min(PriceRow.id).label("price_row_id"),
+        ),
+        filters,
+    ).group_by(*_GROUPING)
+
+
 async def list_discounts(
     session: AsyncSession, filters: DiscountFilter
 ) -> list[DiscountRow]:
     query = (
-        _base_query(filters)
-        .order_by(*_ordering(filters))
+        _aggregate_query(filters)
+        .order_by(*_aggregated_ordering(filters))
         .limit(filters.limit)
         .offset(filters.offset)
     )
-    rows = (await session.scalars(query)).unique().all()
-    return [_to_row(row) for row in rows]
+    return [_from_aggregate(row) for row in await session.execute(query)]
 
 
 async def count_discounts(session: AsyncSession, filters: DiscountFilter) -> int:
-    query = _join_and_filter(select(func.count(PriceRow.id)), filters)
-    return await session.scalar(query) or 0
+    """Колку РАЗЛИЧНИ попусти има - спојување како во списокот."""
+    inner = _join_and_filter(select(*_GROUPING), filters).group_by(*_GROUPING)
+    return await session.scalar(select(func.count()).select_from(inner.subquery())) or 0
 
 
 async def group_discounts(
@@ -346,6 +442,39 @@ async def run_summary(
         .order_by(Chain.name, PricelistRun.status)
     )
     return [tuple(row) for row in await session.execute(query)]  # type: ignore[misc]
+
+
+def _from_aggregate(row) -> DiscountRow:
+    """DiscountRow од споен ред (производ + цена + број продавници)."""
+    package = None
+    if row.package_value is not None and row.package_unit:
+        package = f"{row.package_value.normalize()} {row.package_unit}"
+
+    return DiscountRow(
+        price_row_id=row.price_row_id,
+        product_name=row.raw_name,
+        product_description=row.raw_description,
+        package=package,
+        chain_name=row.chain_name or "",
+        store_name=row.store_name or "",
+        city_name=row.city_name,
+        store_count=row.store_count,
+        chain_count=row.chain_count,
+        regular_price=row.regular_price,
+        discount_price=row.discount_price,
+        discount_pct=row.discount_pct,
+        unit_price_base=row.unit_price_base,
+        base_unit=row.base_unit.value if row.base_unit else None,
+        promo_type=row.promo_type,
+        promo_type_raw=row.promo_type_raw,
+        valid_from=row.valid_from,
+        valid_to=row.valid_to,
+        is_single_day=row.is_single_day,
+        group_slug=row.group_slug or row.category_slug,
+        group_name=row.group_name or row.category_name,
+        subcategory_slug=row.category_slug if row.group_slug else None,
+        subcategory_name=row.category_name if row.group_slug else None,
+    )
 
 
 def _to_row(row: PriceRow) -> DiscountRow:

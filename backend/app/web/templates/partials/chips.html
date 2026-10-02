@@ -1,0 +1,33 @@
+{# Копчињата за категории, две нивоа.
+
+   При HTMX барање се враќаат и одделно (out-of-band), за да означеното се
+   освежи иако се менува само списокот со резултати. #}
+<div id="kategorii" class="chip-rail"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <div class="chips" role="group" aria-label="Групи">
+    <button type="submit" name="grupa" value="" data-strana="1"
+            class="chip {% if not selected.grupa %}chip-on{% endif %}">
+      Сите
+    </button>
+    {% for slug, name, count in group_counts %}
+      <button type="submit" name="grupa" value="{{ slug }}" data-strana="1"
+              class="chip {% if selected.grupa_root == slug %}chip-on{% endif %}">
+        {{ name }}<span class="chip-count">{{ "{:,}".format(count).replace(",", ".") }}</span>
+      </button>
+    {% endfor %}
+  </div>
+
+  {% if subcategories %}
+    <div class="chips chips-sub" role="group" aria-label="Под-категории">
+      <button type="submit" name="grupa" value="{{ selected_group }}" data-strana="1"
+              class="chip chip-sm {% if selected.grupa == selected_group %}chip-on{% endif %}">
+        Сè во групата
+      </button>
+      {% for slug, name, count in subcategories %}
+        <button type="submit" name="grupa" value="{{ slug }}" data-strana="1"
+                class="chip chip-sm {% if selected.grupa == slug %}chip-on{% endif %}">
+          {{ name }}<span class="chip-count">{{ count }}</span>
+        </button>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>

@@ -1,49 +1,59 @@
 {% extends "base.html" %}
 
-{% block content %}
-<section class="head">
-  <h1>Состојба на читањата</h1>
-  <p class="meta">
-    За <strong>{{ run_date.strftime("%d.%m.%Y") }}</strong>
-    {% if is_stale %}
-      (последното читање со податоци; денес е {{ today.strftime("%d.%m.%Y") }})
+{% block body %}
+<div class="layout" style="grid-template-columns: minmax(0, 1fr);">
+  <main class="content">
+    <section class="page-head">
+      <h1>Состојба на читањата</h1>
+      <p class="subtitle">
+        {{ run_date.strftime("%d.%m.%Y") }}
+        {% if is_stale %}(последниот ден со податоци){% endif %}
+        · {{ "{:,}".format(total).replace(",", ".") }} попусти запишани
+      </p>
+      {% if is_stale %}
+        <p class="notice">
+          За {{ today.strftime("%d.%m.%Y") }} сè уште нема читање.
+        </p>
+      {% endif %}
+    </section>
+
+    <p class="subtitle" style="margin-bottom: 12px;">
+      Читач што не успее се запишува — никогаш не враќа тивко празен
+      резултат. Тука се гледа кој извор поминал, а кој не.
+    </p>
+
+    {% if not runs %}
+      <p class="empty">Нема запишани читања за овој ден.</p>
+    {% else %}
+      <table class="status-table">
+        <thead>
+          <tr><th>Маркет</th><th>Состојба</th><th class="num">Читања</th><th class="num">Попусти</th></tr>
+        </thead>
+        <tbody>
+          {% for chain, status, count, discounts in runs %}
+            <tr class="st-{{ status }}">
+              <td>{{ chain }}</td>
+              <td>
+                {% if status == "success" %}успешно
+                {% elif status == "unchanged" %}непроменет ценовник
+                {% elif status == "empty" %}изворот не објави цени
+                {% elif status == "failed" %}изворот не е достапен
+                {% elif status == "structure_changed" %}сменета структура — бара поправка
+                {% elif status == "running" %}во тек
+                {% else %}{{ status }}
+                {% endif %}
+              </td>
+              <td class="num">{{ count }}</td>
+              <td class="num">{{ "{:,}".format(discounts).replace(",", ".") }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
     {% endif %}
-    · {{ total }} попусти запишани
-  </p>
-  <p class="meta">
-    Тука се гледа кога изворот не бил достапен или сменил формат. Читач што
-    не успее се запишува - никогаш не враќа тивко празен резултат.
-  </p>
-</section>
 
-{% if not runs %}
-  <p class="empty">Нема запишани читања за овој ден.</p>
-{% else %}
-  <table class="status">
-    <thead>
-      <tr><th>Маркет</th><th>Состојба</th><th>Читања</th><th>Попусти</th></tr>
-    </thead>
-    <tbody>
-      {% for chain, status, count, discounts in runs %}
-        <tr class="st-{{ status }}">
-          <td>{{ chain }}</td>
-          <td>
-            {% if status == "success" %}успешно
-            {% elif status == "unchanged" %}непроменет ценовник
-            {% elif status == "empty" %}изворот не објави цени
-            {% elif status == "failed" %}изворот не е достапен
-            {% elif status == "structure_changed" %}сменета структура — бара поправка
-            {% elif status == "running" %}во тек
-            {% else %}{{ status }}
-            {% endif %}
-          </td>
-          <td class="num">{{ count }}</td>
-          <td class="num">{{ discounts }}</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-{% endif %}
-
-<p class="meta"><a href="/">← назад на попустите</a></p>
+    <p class="subtitle" style="margin-top: 16px;">
+      <a href="/">← назад на попустите</a>
+    </p>
+  </main>
+</div>
 {% endblock %}

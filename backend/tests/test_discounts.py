@@ -319,3 +319,74 @@ async def test_unit_price_sort_does_not_mix_units(seeded) -> None:
     units = [row.base_unit for row in rows if row.base_unit]
     # Истата единица мора да биде во еден непрекинат блок.
     assert units == sorted(units)
+
+
+# ==========================================================================
+# Спојување на ист производ низ продавници
+# ==========================================================================
+async def test_same_product_same_price_is_one_row(db_session) -> None:
+    """Ист попуст во повеќе продавници се прикажува еднаш.
+
+    Без ова списокот е преполн со повторување: попуст на Рамстор важи во
+    сите 36 продавници, па корисникот ја гледа истата картичка 36 пати.
+    """
+    for external_id, name in (("1", "ВЕРО 1"), ("2", "ВЕРО 2"), ("3", "ВЕРО 3")):
+        await _seed(
+            db_session,
+            _Reader,
+            StoreRef(external_id=external_id, name=name, city="Скопје"),
+            [_row("НЕСКАФЕ КЛАСИК 100ГР", discount_price=Decimal("189"))],
+        )
+
+    rows = await list_discounts(db_session, DiscountFilter(run_date=RUN_DATE))
+    assert len(rows) == 1
+    assert rows[0].store_count == 3
+    assert "3 продавници" in rows[0].where_label
+
+
+async def test_same_product_different_price_stays_separate(db_session) -> None:
+    """Различна цена НЕ се спојува - инаку би измислиле цена што ја нема."""
+    await _seed(
+        db_session,
+        _Reader,
+        StoreRef(external_id="1", name="ВЕРО 1", city="Скопје"),
+        [_row("НЕСКАФЕ КЛАСИК 100ГР", discount_price=Decimal("189"))],
+    )
+    await _seed(
+        db_session,
+        _Reader,
+        StoreRef(external_id="2", name="ВЕРО 2", city="Тетово"),
+        [_row("НЕСКАФЕ КЛАСИК 100ГР", discount_price=Decimal("199"))],
+    )
+
+    rows = await list_discounts(db_session, DiscountFilter(run_date=RUN_DATE))
+    assert len(rows) == 2
+    assert {row.discount_price for row in rows} == {Decimal("189"), Decimal("199")}
+    assert all(row.store_count == 1 for row in rows)
+
+
+async def test_count_matches_merged_rows(db_session) -> None:
+    """Бројот во заглавието мора да е ист како бројот на картички."""
+    for external_id in ("1", "2", "3", "4"):
+        await _seed(
+            db_session,
+            _Reader,
+            StoreRef(external_id=external_id, name=f"ВЕРО {external_id}", city="Скопје"),
+            [_row("НЕСКАФЕ КЛАСИК 100ГР", discount_price=Decimal("189"))],
+        )
+
+    filters = DiscountFilter(run_date=RUN_DATE)
+    assert await count_discounts(db_session, filters) == 1
+    assert len(await list_discounts(db_session, filters)) == 1
+
+
+async def test_single_store_shows_its_name(db_session) -> None:
+    await _seed(
+        db_session,
+        _Reader,
+        StoreRef(external_id="1", name="ВЕРО 1", city="Скопје"),
+        [_row("НЕСКАФЕ КЛАСИК 100ГР")],
+    )
+    row = (await list_discounts(db_session, DiscountFilter(run_date=RUN_DATE)))[0]
+    assert row.where_label == "Веро · ВЕРО 1"
+    assert row.city_name == "Скопје"
