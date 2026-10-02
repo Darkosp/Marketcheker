@@ -1,16 +1,71 @@
 {% extends "base.html" %}
 
 {% block content %}
-<section class="card">
-  <h1>Дневни попусти</h1>
-  <p>
-    Скелетот работи. Приказот на попустите по град, маркет и категорија
-    доаѓа во чекор 5.
-  </p>
-  <p class="muted">
-    <a href="/docs">API документација</a> &middot;
-    <a href="/health">health</a> &middot;
-    <a href="/health/db">health/db</a>
+<section class="head">
+  <h1>Денешни попусти</h1>
+  <p class="meta">
+    {% if is_stale %}
+      <span class="warn">Нема податоци за {{ today.strftime("%d.%m.%Y") }}</span>
+      — прикажано е последното читање од
+      <strong>{{ run_date.strftime("%d.%m.%Y") }}</strong>.
+      <a href="/sostojba">Зошто?</a>
+    {% else %}
+      <strong>{{ run_date.strftime("%d.%m.%Y") }}</strong> ·
+      {{ total }} попусти ·
+      <a href="/sostojba">состојба на читањата</a>
+    {% endif %}
   </p>
 </section>
+
+<form class="filters"
+      hx-get="/"
+      hx-target="#rezultati"
+      hx-trigger="change, submit"
+      hx-push-url="true"
+      hx-indicator="#loading">
+  <input type="hidden" name="datum" value="{{ run_date.isoformat() }}">
+
+  <label class="field">
+    <span>Град</span>
+    <select name="grad">
+      <option value="">сите градови</option>
+      {% for slug, name, store_count in cities %}
+        <option value="{{ slug }}" {% if selected.grad == slug %}selected{% endif %}>
+          {{ name }} ({{ store_count }})
+        </option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label class="field">
+    <span>Подреди</span>
+    <select name="sortiraj">
+      {% for value, label in sort_options %}
+        <option value="{{ value }}" {% if selected.sortiraj == value %}selected{% endif %}>
+          {{ label }}
+        </option>
+      {% endfor %}
+    </select>
+  </label>
+
+  <label class="check">
+    <input type="checkbox" name="lojalnost" value="true"
+           {% if selected.lojalnost %}checked{% endif %}>
+    <span>со попусти на картичка</span>
+  </label>
+
+  <label class="check">
+    <input type="checkbox" name="ednodnevni" value="true"
+           {% if selected.ednodnevni %}checked{% endif %}>
+    <span>само еднодневни</span>
+  </label>
+
+  {% include "partials/group_chips.html" %}
+
+  <span id="loading" class="loading">читам…</span>
+</form>
+
+<div id="rezultati">
+  {% include "partials/discount_list.html" %}
+</div>
 {% endblock %}

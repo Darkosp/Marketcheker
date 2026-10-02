@@ -15,7 +15,7 @@
 | 2 | Скелет + база + Docker | ✅ |
 | 3 | Читачи: Веро, Рамстор | ✅ |
 | 4 | Групирање по употреба | ✅ |
-| 5 | Приказ на сите денешни попусти | ⬜ |
+| 5 | Приказ на сите денешни попусти | ✅ |
 | 6 | Читачи: Кипер, КАМ, Тинекс | ⬜ |
 | 7 | Дневно закажување (11:00) | ⬜ |
 
@@ -31,10 +31,24 @@ APScheduler · Docker Compose · pytest · ruff
 cp .env.example .env          # па смени ги POSTGRES_PASSWORD и SECRET_KEY
 docker compose up -d db
 docker compose run --rm api alembic upgrade head
-docker compose up api
+docker compose up -d api
+
+# прочитај ги ценовниците и запиши ги попустите
+docker compose exec api python -m app.cli citaj
+
+# или само неколку продавници, за проба
+docker compose exec api python -m app.cli citaj --ramstore --limit 2
+
+# состојба за денес: кој извор поминал, кој паднал
+docker compose exec api python -m app.cli izvestaj
 ```
 
-Апликацијата е на <http://localhost:8000>, API документација на `/docs`.
+Апликацијата е на <http://localhost:8000> (API документација на `/docs`).
+Без читање базата е празна и страницата нема што да прикаже.
+
+Нема најава: се отвора страницата и се гледаат сите денешни попусти.
+Филтрите (град, маркет, група, подредување) се во URL-то, за да може линк
+да се подели. `/sostojba` покажува кое читање поминало, а кое паднало.
 
 Ако портот 5434 (Postgres) или 8000 (апликација) е зафатен, смени
 `POSTGRES_HOST_PORT` / `APP_HOST_PORT` во `.env`.

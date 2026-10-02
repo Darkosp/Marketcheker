@@ -28,7 +28,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, SeenMixin, TimestampMixin
+from app.db.base import Base, SeenMixin, TimestampMixin, enum_column
 from app.models.enums import BaseUnit, CategoryStatus
 
 if TYPE_CHECKING:
@@ -53,7 +53,9 @@ class ProductCategory(Base, TimestampMixin):
         ForeignKey("product_category.id", ondelete="SET NULL")
     )
     # Во која единица има смисла да се споредува цената во оваа категорија.
-    default_base_unit: Mapped[BaseUnit | None] = mapped_column(String(16), nullable=True)
+    default_base_unit: Mapped[BaseUnit | None] = mapped_column(
+        enum_column(BaseUnit, length=16), nullable=True
+    )
     sort_order: Mapped[int] = mapped_column(Integer, default=100, server_default="100")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
 
@@ -134,14 +136,16 @@ class Product(Base, TimestampMixin, SeenMixin):
     package_unit: Mapped[str | None] = mapped_column(String(16))
     # Истата грамажа сведена на основна единица, за споредба на цени.
     base_quantity: Mapped[Decimal | None] = mapped_column(Numeric(14, 5))
-    base_unit: Mapped[BaseUnit | None] = mapped_column(String(16))
+    base_unit: Mapped[BaseUnit | None] = mapped_column(enum_column(BaseUnit, length=16))
 
     # ---- Категоризација ----
     category_id: Mapped[int | None] = mapped_column(
         ForeignKey("product_category.id", ondelete="SET NULL"), index=True
     )
     category_status: Mapped[CategoryStatus] = mapped_column(
-        String(16), default=CategoryStatus.UNKNOWN, server_default="unknown"
+        enum_column(CategoryStatus, length=16),
+        default=CategoryStatus.UNKNOWN,
+        server_default="unknown",
     )
     # Кој клучен збор го донесе тука - за да може да се провери одлуката.
     category_matched_keyword: Mapped[str | None] = mapped_column(String(160))

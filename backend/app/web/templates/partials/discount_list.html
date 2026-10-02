@@ -1,0 +1,65 @@
+{% if oob %}{% with oob=True %}{% include "partials/group_chips.html" %}{% endwith %}{% endif %}
+{# Списокот со попусти. HTMX го заменува само овој дел. #}
+{% if not groups %}
+  <p class="empty">
+    Нема попусти што одговараат на избраното. Пробај без филтри.
+  </p>
+{% else %}
+  {% if shown < total %}
+    <p class="meta">
+      Прикажани {{ shown }} од {{ total }} попусти (најмногу {{ page_size }} по
+      страница). Избери град или група за помал список.
+    </p>
+  {% endif %}
+
+  {% for group in groups %}
+    <section class="group">
+      <h2>{{ group.name }} <span class="count">{{ group.count }}</span></h2>
+
+      <ul class="cards">
+        {% for row in group.rows %}
+          <li class="card{% if row.is_loyalty_only %} card-loyalty{% endif %}">
+            <div class="row-top">
+              {# Производот се прикажува точно како во ценовникот. #}
+              <span class="name">{{ row.product_name }}</span>
+              {% if row.discount_pct %}
+                <span class="pct">−{{ row.discount_pct|round(0, "floor")|int }}%</span>
+              {% endif %}
+            </div>
+
+            <div class="prices">
+              {% if row.regular_price %}
+                <s class="old">{{ row.regular_price|round(0, "floor")|int }}</s>
+              {% endif %}
+              {% if row.discount_price %}
+                <strong class="new">{{ row.discount_price|round(0, "floor")|int }} ден</strong>
+              {% endif %}
+              {% if row.unit_price_label %}
+                <span class="unit">{{ row.unit_price_label }}</span>
+              {% endif %}
+            </div>
+
+            <div class="row-bottom">
+              <span class="store">{{ row.chain_name }} · {{ row.store_name }}</span>
+              {% if row.city_name %}<span class="city">{{ row.city_name }}</span>{% endif %}
+            </div>
+
+            <div class="tags">
+              {% if row.is_loyalty_only %}
+                <span class="tag tag-loyalty">само со картичка</span>
+              {% endif %}
+              {% if row.is_single_day %}
+                <span class="tag tag-day">само денес</span>
+              {% elif row.valid_to %}
+                <span class="tag">до {{ row.valid_to.strftime("%d.%m") }}</span>
+              {% endif %}
+              {% if row.product_description %}
+                <span class="tag tag-desc">{{ row.product_description }}</span>
+              {% endif %}
+            </div>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endfor %}
+{% endif %}

@@ -21,7 +21,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base, TimestampMixin
+from app.db.base import Base, TimestampMixin, enum_column
 from app.models.enums import PromoType, RunStatus
 
 if TYPE_CHECKING:
@@ -63,7 +63,10 @@ class PricelistRun(Base, TimestampMixin):
 
     source_url: Mapped[str | None] = mapped_column(String(1024))
     status: Mapped[RunStatus] = mapped_column(
-        String(24), default=RunStatus.RUNNING, server_default="running", index=True
+        enum_column(RunStatus, length=24),
+        default=RunStatus.RUNNING,
+        server_default="running",
+        index=True,
     )
 
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -138,7 +141,9 @@ class PriceRow(Base):
 
     # ---- Вид на поттикнување ----
     promo_type: Mapped[PromoType] = mapped_column(
-        String(16), default=PromoType.NONE, server_default="none"
+        enum_column(PromoType, length=16),
+        default=PromoType.NONE,
+        server_default="none",
     )
     # Оригиналниот текст („АКЦИСКА ПРОДАЖБА", „ЛОЈАЛНОСТ", ...) за да не
     # изгубиме информација кога мапирањето не е сигурно.

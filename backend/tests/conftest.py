@@ -48,8 +48,15 @@ async def client() -> AsyncIterator[AsyncClient]:
 
 @pytest.fixture(scope="session")
 async def db_engine(settings):
-    """Engine кон тест базата; прескокнува ако базата не е достапна."""
+    """Engine кон тест базата; прескокнува ако базата не е достапна.
+
+    Шемата се прави со create_all, не со Alembic: тестовите се вртат често и
+    миграциите се проверуваат одделно (круг upgrade/downgrade). Затоа
+    CHECK ограничувањата, кои живеат само во миграцијата, ги нема тука.
+    """
     from sqlalchemy import text
+
+    from app.models import Base
 
     engine = create_async_engine(settings.test_database_url, poolclass=None)
     try:
@@ -58,7 +65,15 @@ async def db_engine(settings):
     except Exception as exc:
         await engine.dispose()
         pytest.skip(f"Тест базата не е достапна: {exc}")
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.create_all)
+
     yield engine
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
     await engine.dispose()
 
 

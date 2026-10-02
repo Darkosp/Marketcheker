@@ -8,7 +8,11 @@ requires-python = ">=3.12"
 testpaths = ["tests"]
 pythonpath = ["."]
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "function"
+# Една asyncio јамка за цела сесија: engine-от кон тест базата се прави
+# еднаш, а тестовите мора да се вртат во истата јамка - инаку asyncpg фрла
+# "attached to a different loop".
+asyncio_default_fixture_loop_scope = "session"
+asyncio_default_test_loop_scope = "session"
 addopts = "-q --strict-markers"
 markers = [
     "db: тестот бара жива PostgreSQL база (се прескокнува ако ја нема)",

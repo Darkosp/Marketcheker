@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="head">
+  <h1>Состојба на читањата</h1>
+  <p class="meta">
+    За <strong>{{ run_date.strftime("%d.%m.%Y") }}</strong>
+    {% if is_stale %}
+      (последното читање со податоци; денес е {{ today.strftime("%d.%m.%Y") }})
+    {% endif %}
+    · {{ total }} попусти запишани
+  </p>
+  <p class="meta">
+    Тука се гледа кога изворот не бил достапен или сменил формат. Читач што
+    не успее се запишува - никогаш не враќа тивко празен резултат.
+  </p>
+</section>
+
+{% if not runs %}
+  <p class="empty">Нема запишани читања за овој ден.</p>
+{% else %}
+  <table class="status">
+    <thead>
+      <tr><th>Маркет</th><th>Состојба</th><th>Читања</th><th>Попусти</th></tr>
+    </thead>
+    <tbody>
+      {% for chain, status, count, discounts in runs %}
+        <tr class="st-{{ status }}">
+          <td>{{ chain }}</td>
+          <td>
+            {% if status == "success" %}успешно
+            {% elif status == "unchanged" %}непроменет ценовник
+            {% elif status == "failed" %}изворот не е достапен
+            {% elif status == "structure_changed" %}сменета структура — бара поправка
+            {% elif status == "running" %}во тек
+            {% else %}{{ status }}
+            {% endif %}
+          </td>
+          <td class="num">{{ count }}</td>
+          <td class="num">{{ discounts }}</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+
+<p class="meta"><a href="/">← назад на попустите</a></p>
+{% endblock %}
