@@ -41,6 +41,7 @@ from app.db.session import SessionLocal, dispose_engine
 from app.models import PricelistRun
 from app.models.enums import RunStatus
 from app.services.ingest import today_local
+from app.services.retention import cleanup_old_history
 from app.services.runner import run_all
 
 log = get_logger(__name__)
@@ -90,6 +91,15 @@ async def daily_read() -> None:
         # Закажувачот мора да преживее; утре пак се обидува.
         log.exception("Дневното читање падна целосно")
         return
+
+    # Старата историја се чисти по читањето, не пред: ако читањето падне,
+    # барем не сме бришеле без причина.
+    try:
+        async with SessionLocal() as session:
+            await cleanup_old_history(session)
+            await session.commit()
+    except Exception:
+        log.exception("Чистењето на старата историја падна")
 
     for outcome in outcomes:
         log.info(

@@ -44,6 +44,11 @@ from app.readers.base import (
 )
 from app.readers.parsing import fingerprint
 from app.readers.promo import map_promo_type
+from app.services.prices import (
+    touch_current_prices,
+    write_daily_stats,
+    write_prices,
+)
 
 log = get_logger(__name__)
 
@@ -281,22 +286,33 @@ async def save_result(
 
     discount_rows = result.discount_rows
 
-    # Иста содржина како претходниот успешен run -> нема што ново да се запише.
+    # Иста содржина како претходниот успешен run -> нема што ново да се
+    # запише. НО само ако тековните цени веќе ги имаме: прв пат по
+    # воведувањето на current_price сите ценовници се „непроменети", а
+    # табелата е празна.
     if result.content_hash and await _unchanged(session, run, result.content_hash):
-        run.status = RunStatus.UNCHANGED
-        run.finished_at = datetime.now(UTC)
-        run.rows_total = result.rows_total
-        run.rows_discount = len(discount_rows)
-        run.content_hash = result.content_hash
-        log.info("%s: ценовникот е непроменет, прескокнувам", result.source_url)
-        return 0
+        touched = await touch_current_prices(session, store, run_date=run.run_date)
+        if touched:
+            run.status = RunStatus.UNCHANGED
+            run.finished_at = datetime.now(UTC)
+            run.rows_total = result.rows_total
+            run.rows_discount = len(discount_rows)
+            run.content_hash = result.content_hash
+            log.info("%s: ценовникот е непроменет, прескокнувам", result.source_url)
+            return 0
+        log.info(
+            "%s: ценовникот е непроменет, но немам тековни цени - запишувам",
+            result.source_url,
+        )
 
-    keyed = [(fingerprint(row.name, row.description), row) for row in discount_rows]
+    # Производи се создаваат за СИТЕ прочитани редови, не само за попустите:
+    # без цената на јајцата кога не се на попуст, корпа не може да се состави.
+    keyed = [(fingerprint(row.name, row.description), row) for row in result.rows]
     products = await _load_products(session, store.chain_id, {key for key, _ in keyed})
 
     now = datetime.now(UTC)
     new_products: dict[str, Product] = {}
-    written = 0
+    resolved: list[tuple[RawPriceRow, Product]] = []
 
     for key, row in keyed:
         product = products.get(key) or new_products.get(key)
@@ -306,11 +322,32 @@ async def save_result(
             new_products[key] = product
         else:
             product.last_seen_at = now
+        resolved.append((row, product))
 
-        session.add(_build_price_row(run, store, product, row, run_date=run.run_date))
-        written += 1
+    # Производите мораат да добијат id пред цените да се запишат.
+    await session.flush()
 
-    # Производите мораат да добијат id пред редовите со цени да се запишат.
+    # Попустите одат и во price_row - тоа е дневната историја што ја чита
+    # страницата. Целиот асортиман оди во current_price.
+    written = 0
+    for row, product in resolved:
+        if row.is_discount:
+            session.add(_build_price_row(run, store, product, row, run_date=run.run_date))
+            written += 1
+
+    price_result = await write_prices(
+        session,
+        store,
+        [(row, product.id) for row, product in resolved],
+        run_date=run.run_date,
+    )
+    await write_daily_stats(
+        session,
+        store,
+        [(row, product.id) for row, product in resolved],
+        run_date=run.run_date,
+        changed_total=price_result.changed_total,
+    )
     await session.flush()
 
     run.status = RunStatus.SUCCESS
@@ -424,7 +461,7 @@ async def ingest_store(
         return run
 
     log.info(
-        "%s / %s: %d попусти запишани (%d прочитани редови)",
+        "%s / %s: %d попусти, %d редови во асортиманот",
         chain.code,
         store.name,
         written,

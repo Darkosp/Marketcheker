@@ -10,6 +10,7 @@ from app.models.enums import (
     RunStatus,
 )
 from app.models.geo import City
+from app.models.prices import CurrentPrice, DailyStoreStats, PriceChange
 from app.models.pricing import PricelistRun, PriceRow
 from app.models.user import User, UserCategory, UserStore
 
@@ -20,6 +21,9 @@ __all__ = [
     "CategoryStatus",
     "Chain",
     "City",
+    "CurrentPrice",
+    "DailyStoreStats",
+    "PriceChange",
     "PriceRow",
     "PricelistRun",
     "Product",
