@@ -1,16 +1,101 @@
-# Marketcheker
-# Marketcheker
+# Marketchecker
 
-## Опис
-Marketcheker е апликација за проверка и анализа на пазарни податоци.  
-Проектот е структуриран со **backend** (Python/FastAPI), **frontend** (React), и **PostgreSQL** база.
+Веб-апликација (PWA, за мобилен) што секој ден ги чита јавните ценовници на
+маркетите во Македонија и на корисникот му ги прикажува **само производите на
+попуст** — за неговиот град, неговите маркети и категориите што ги следи.
+
+Цените се **по продавница**, не по синџир: ист производ во две продавници на
+истиот маркет може да има различна цена.
+
+## Состојба
+
+| Чекор | Што | Состојба |
+|---|---|---|
+| 1 | Ревизија на репото | ✅ |
+| 2 | Скелет + база + Docker | ✅ |
+| 3 | Читачи: Веро, Рамстор | ⬜ |
+| 4 | Категоризација | ⬜ |
+| 5 | Корисници и приказ | ⬜ |
+| 6 | Читачи: Кипер, КАМ, Тинекс | ⬜ |
+| 7 | Дневно закажување (11:00) | ⬜ |
 
 ## Технологии
-- Python 3.10+
-- FastAPI
-- SQLAlchemy
-- PostgreSQL
-- React (Frontend)
-- GitHub Actions (CI/CD)
+
+Python 3.12 · FastAPI · PostgreSQL 17 · SQLAlchemy 2 (async) + Alembic ·
+httpx · selectolax / BeautifulSoup · pdfplumber · Jinja2 + HTMX ·
+APScheduler · Docker Compose · pytest · ruff
+
+## Стартување
+
+```bash
+cp .env.example .env          # па смени ги POSTGRES_PASSWORD и SECRET_KEY
+docker compose up -d db
+docker compose run --rm api alembic upgrade head
+docker compose up api
+```
+
+Апликацијата е на <http://localhost:8000>, API документација на `/docs`.
+
+Ако портот 5434 (Postgres) или 8000 (апликација) е зафатен, смени
+`POSTGRES_HOST_PORT` / `APP_HOST_PORT` во `.env`.
+
+### Тестови и lint
+
+```bash
+docker compose run --rm api pytest
+docker compose run --rm api ruff check .
+```
+
+Тестовите се вртат врз **зачувани примероци** во `backend/tests/fixtures/`,
+никогаш врз живи сајтови. Тестовите што бараат база се означени со
+`@pytest.mark.db` и се прескокнуваат ако базата не е достапна.
+
+### Нова миграција
+
+```bash
+docker compose run --rm api alembic revision --autogenerate -m "опис"
+docker compose run --rm api alembic upgrade head
+```
+
+Табелите ги создава **само** Alembic. Апликацијата никогаш не вика
+`create_all()`.
 
 ## Структура
+
+```
+backend/
+  app/
+    core/        конфигурација, логирање, argon2
+    db/          Base, mixin-и, async сесии
+    models/      домејн: синџири, продавници, производи, цени, корисници
+    readers/     по еден модул на синџир, заеднички интерфејс во base.py
+    api/         FastAPI рути
+    web/         Jinja2 шаблони + static (HTMX)
+  alembic/       миграции
+  tests/         pytest + fixtures (зачувани примероци од ценовници)
+config/initdb/   SQL/sh што се вртат при првото креирање на базата
+docs/            белешки за секој извор
+```
+
+## Извори на ценовници
+
+| Синџир | Извор | Формат | Продавници |
+|---|---|---|---|
+| Веро | `pricelist.vero.com.mk` | HTML, `{id}_{страна}.html` | 16 |
+| Рамстор | `ramstore.com.mk/marketi/` | HTML, една табела | 36 |
+| Кипер | `kipper.mk` | JSON преку `admin-ajax.php` (зад Cloudflare) | по продавница |
+| КАМ | `kam.mk/ceni-vo-marketi.nspx` | текстуален PDF (~157 стр.) | 86 |
+| Тинекс | `ceni.tinex.mk` | да се истражи | ? |
+
+Детали за секој извор: [docs/izvori.md](docs/izvori.md).
+
+## Правила
+
+- **Попуст** = ред со пополнета цена со попуст. **Еднодневен** = датум од
+  == датум до.
+- Производот се прикажува **точно како во ценовникот**, со бренд и грамажа.
+  Nescafe 100 g и Nescafe 200 g се различни производи.
+- „Лојалност" (само со картичка) се означува одделно од обична акција.
+- **Учтиво читање**: пауза меѓу барања, повторни обиди, јасен User-Agent.
+- Ако структурата на ценовник се смени, читачот **јавува грешка** и се
+  логира — никогаш тивок празен резултат.

@@ -1,0 +1,32 @@
+[project]
+name = "marketchecker"
+version = "0.1.0"
+description = "Дневни попусти од ценовниците на маркетите во Македонија"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q --strict-markers"
+markers = [
+    "db: тестот бара жива PostgreSQL база (се прескокнува ако ја нема)",
+]
+
+[tool.ruff]
+line-length = 90
+target-version = "py312"
+extend-exclude = ["alembic/versions"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "C4", "RUF"]
+ignore = [
+    "RUF001",  # македонска кирилица до латиница - намерно
+    "RUF002",
+    "RUF003",
+    "B008",    # Depends() во default вредност е FastAPI образец
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E501"]
