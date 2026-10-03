@@ -11,6 +11,7 @@ from app.catalog import default_grouper
 from app.catalog.groups import GROUPS, SUBCATEGORIES
 from app.readers.base import RawPriceRow, ReaderResult, StoreRef
 from app.services import ingest
+from app.services.catalog import catalog_tree
 from app.services.discounts import (
     DiscountFilter,
     SortBy,
@@ -20,6 +21,7 @@ from app.services.discounts import (
     counts_by_group,
     latest_run_date,
     list_discounts,
+    read_coverage,
 )
 
 pytestmark = pytest.mark.db
@@ -375,3 +377,110 @@ async def test_single_store_shows_its_name(db_session) -> None:
     row = (await list_discounts(db_session, DiscountFilter(run_date=RUN_DATE)))[0]
     assert row.where_label == "Веро · ВЕРО 1"
     assert row.city_name == "Скопје"
+
+
+# ==========================================================================
+# Изборот на корисникот
+# ==========================================================================
+async def test_selection_narrows_to_what_is_followed(seeded) -> None:
+    rows = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, selection=["kafe"])
+    )
+    assert {row.product_name for row in rows} == {
+        "НЕСКАФЕ КЛАСИК 100ГР",
+        "НЕСКАФЕ ГОЛД 200ГР",
+    }
+
+
+async def test_selecting_a_group_takes_everything_in_it(seeded) -> None:
+    """„Храна" го носи и маслото и грицките, без да се набројуваат."""
+    rows = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, selection=["hrana"])
+    )
+    names = {row.product_name for row in rows}
+    assert "МАСЛО МАСЛИНОВО 0.75Л" in names
+    assert "ТАЈМ АУТ ЛЕШНИК 50 ГР" in names
+    assert "НЕСКАФЕ КЛАСИК 100ГР" not in names
+
+
+async def test_several_choices_add_up(seeded) -> None:
+    rows = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, selection=["kafe", "masla"])
+    )
+    assert len(rows) == 3
+
+
+async def test_empty_selection_means_everything(seeded) -> None:
+    everything = await count_discounts(seeded, DiscountFilter(run_date=RUN_DATE))
+    with_empty = await count_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, selection=[])
+    )
+    assert everything == with_empty
+
+
+async def test_selection_with_no_discounts_counts_zero(seeded) -> None:
+    """Ова е случајот за кој постои празната страница."""
+    assert (
+        await count_discounts(
+            seeded, DiscountFilter(run_date=RUN_DATE, selection=["cigari"])
+        )
+        == 0
+    )
+
+
+async def test_selection_and_city_both_apply(seeded) -> None:
+    rows = await list_discounts(
+        seeded,
+        DiscountFilter(run_date=RUN_DATE, selection=["kafe"], city_slug="tetovo"),
+    )
+    assert [row.product_name for row in rows] == ["НЕСКАФЕ ГОЛД 200ГР"]
+
+
+async def test_group_counts_follow_the_selection(seeded) -> None:
+    """Копчињата над списокот се стеснуваат сами - група без избран
+    производ воопшто не се појавува.
+    """
+    counts = await counts_by_group(
+        seeded, DiscountFilter(run_date=RUN_DATE, selection=["kafe"])
+    )
+    assert [slug for slug, _, _ in counts] == ["pijaloci"]
+
+
+# ==========================================================================
+# Што било проверено (бројот под празната страница)
+# ==========================================================================
+async def test_coverage_counts_chains_and_stores(seeded) -> None:
+    chains, stores = await read_coverage(seeded, RUN_DATE)
+    assert (chains, stores) == (2, 3)
+
+
+async def test_coverage_follows_the_city(seeded) -> None:
+    chains, stores = await read_coverage(seeded, RUN_DATE, city_slug="tetovo")
+    assert (chains, stores) == (1, 1)
+
+
+async def test_coverage_is_empty_for_another_day(seeded) -> None:
+    assert await read_coverage(seeded, date(2026, 1, 1)) == (0, 0)
+
+
+# ==========================================================================
+# Дрвото за страницата со избор
+# ==========================================================================
+async def test_tree_has_groups_with_their_subcategories(seeded) -> None:
+    tree = await catalog_tree(seeded)
+    drinks = next(node for node in tree if node.slug == "pijaloci")
+    assert "kafe" in {child.slug for child in drinks.children}
+
+
+async def test_group_count_includes_its_subcategories(seeded) -> None:
+    """Инаку „Пијалоци 0" стои над „Кафе 2" и бројките изгледаат расипани."""
+    tree = await catalog_tree(seeded)
+    drinks = next(node for node in tree if node.slug == "pijaloci")
+    assert drinks.product_count >= sum(child.product_count for child in drinks.children)
+    assert drinks.product_count > 0
+
+
+async def test_empty_groups_are_not_offered(seeded) -> None:
+    """Копче што води во ништо само го оптоварува изборот."""
+    tree = await catalog_tree(seeded)
+    assert all(node.product_count > 0 for node in tree)

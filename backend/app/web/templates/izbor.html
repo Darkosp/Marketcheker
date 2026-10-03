@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+
+{# Избор на производи, чекор по чекор.
+
+   Секое ниво е избирливо само по себе: може да се земе цела „Пијалоци и
+   напитоци", или да се отвори и да се земе само „Кафе" во неа. Најчестиот
+   случај (цела група) е едно тапкање; поточниот избор е зад „поточно".
+
+   Формуларот оди со GET на „/" - изборот влегува во URL-то, а страницата
+   со попусти го запишува во колачето. Затоа тука нема ништо што бара
+   JavaScript: без него сè уште се избира и се праќа. #}
+
+{% block body %}
+<form class="layout layout-single" method="get" action="/">
+  <main class="content pick">
+
+    <section class="page-head">
+      <h1>Што следиш</h1>
+      <p class="subtitle">
+        Избери цела група, или отвори ја и избери поточно. Може и повеќе
+        работи заедно. Без избор се прикажуваат сите денешни попусти.
+      </p>
+    </section>
+
+    {# Празната вредност оди СЕКОГАШ: по неа серверот знае дека барањето се
+       изјаснило за изборот. Без неа, праќање без ниту едно штиклирано поле
+       би го вратило стариот избор од колачето. #}
+    <input type="hidden" name="izbor" value="">
+
+    <div class="pick-top">
+      <label class="field">
+        <span class="field-label">Град</span>
+        <select name="grad">
+          <option value="">сите градови</option>
+          {% for slug, name, store_count in cities %}
+            <option value="{{ slug }}" {% if selected.grad == slug %}selected{% endif %}>
+              {{ name }} ({{ store_count }})
+            </option>
+          {% endfor %}
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Најди категорија</span>
+        <input class="pick-find" type="search" id="najdi" autocomplete="off"
+               placeholder="кафе, масло, пелени…">
+      </label>
+    </div>
+
+    <div class="pick-tree" id="drvo">
+      {% for group in tree %}
+        {% set kids_on = group.children | selectattr("slug", "in", chosen) | list %}
+        <div class="pick-group" data-name="{{ group.name|lower }}">
+          <label class="pick-row">
+            <input type="checkbox" name="izbor" value="{{ group.slug }}"
+                   data-group="{{ group.slug }}"
+                   {% if group.slug in chosen %}checked{% endif %}>
+            <span class="pick-name">{{ group.name }}</span>
+            <span class="pick-count">{{ group.product_count|broj }}</span>
+          </label>
+
+          {% if group.children %}
+            <details class="pick-deeper" {% if kids_on %}open{% endif %}>
+              <summary>поточно ({{ group.children|length }})</summary>
+              <div class="pick-subs">
+                {% for sub in group.children %}
+                  <label class="pick-row pick-row-sub" data-name="{{ sub.name|lower }}">
+                    <input type="checkbox" name="izbor" value="{{ sub.slug }}"
+                           data-parent="{{ group.slug }}"
+                           {% if sub.slug in chosen %}checked{% endif %}>
+                    <span class="pick-name">{{ sub.name }}</span>
+                    <span class="pick-count">{{ sub.product_count|broj }}</span>
+                  </label>
+                {% endfor %}
+              </div>
+            </details>
+          {% endif %}
+        </div>
+      {% endfor %}
+    </div>
+
+    <p class="pick-none" id="pick-none" hidden>
+      Нема категорија со тоа име. Избриши го пишаното за да се вратат сите.
+    </p>
+
+    <div class="pick-bar">
+      <span class="pick-chosen" id="pick-chosen" aria-live="polite">
+        {% if chosen_count %}
+          избрано: {{ chosen_count }}
+        {% else %}
+          ништо избрано — ќе се прикажат сите попусти
+        {% endif %}
+      </span>
+      <span class="pick-actions">
+        {# „Сите производи" е обичен линк со празен izbor: серверот го чита
+           како изјаснет празен избор и го брише колачето. #}
+        <a class="btn btn-ghost" href="/?izbor=">сите производи</a>
+        <button class="btn" type="submit">Прикажи попусти</button>
+      </span>
+    </div>
+
+  </main>
+</form>
+
+<script>
+  // Трите удобности подолу се необврзни: без JavaScript изборот и
+  // праќањето работат исто, само без бројачот и без филтрирањето.
+  const tree = document.getElementById("drvo");
+  const counter = document.getElementById("pick-chosen");
+  const find = document.getElementById("najdi");
+  const nothing = document.getElementById("pick-none");
+
+  // 1. Избрана група ја носи целата своја содржина, па под-категориите во
+  //    неа се излишни. Серверот и така ги вади; тука тоа се ВИДИ.
+  const syncGroup = (box) => {
+    if (!box || !box.dataset.group) return;
+    tree.querySelectorAll(`[data-parent="${box.dataset.group}"]`).forEach((sub) => {
+      sub.disabled = box.checked;
+      sub.closest(".pick-row").classList.toggle("pick-row-off", box.checked);
+    });
+  };
+
+  // 2. Бројачот на избрани.
+  const syncCount = () => {
+    const chosen = tree.querySelectorAll("input:checked:not(:disabled)");
+    counter.textContent = chosen.length
+      ? `избрано: ${chosen.length}`
+      : "ништо избрано — ќе се прикажат сите попусти";
+  };
+
+  tree.querySelectorAll("[data-group]").forEach(syncGroup);
+  tree.addEventListener("change", (event) => {
+    syncGroup(event.target);
+    syncCount();
+  });
+
+  // 3. Филтрирање на дрвото по име. Со 66 категории на телефон, лизгањето
+  //    до „Пелени и марамици" е подолго од пишувањето „пелен".
+  find.addEventListener("input", () => {
+    const needle = find.value.trim().toLowerCase();
+    let shown = 0;
+
+    tree.querySelectorAll(".pick-group").forEach((group) => {
+      const subs = [...group.querySelectorAll(".pick-row-sub")];
+      const groupHit = !needle || group.dataset.name.includes(needle);
+      const subHits = subs.filter((sub) => needle && sub.dataset.name.includes(needle));
+
+      const visible = groupHit || subHits.length > 0;
+      group.hidden = !visible;
+      if (visible) shown += 1;
+
+      subs.forEach((sub) => {
+        sub.hidden = Boolean(needle) && !groupHit && !subHits.includes(sub);
+      });
+
+      // Отворено само кога погодокот е внатре - инаку сите 12 групи се
+      // расклопуваат штом ќе се избрише пишаното.
+      const deeper = group.querySelector(".pick-deeper");
+      if (deeper && needle) deeper.open = subHits.length > 0;
+    });
+
+    nothing.hidden = shown > 0;
+  });
+</script>
+{% endblock %}

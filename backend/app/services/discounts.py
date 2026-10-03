@@ -25,7 +25,7 @@ from app.models import (
     ProductCategory,
     Store,
 )
-from app.models.enums import PromoType
+from app.models.enums import PromoType, RunStatus
 
 # Основните единици се чуваат латинично; на екран одат на македонски.
 UNIT_LABELS = {
@@ -62,6 +62,10 @@ class DiscountFilter:
     city_slug: str | None = None
     store_ids: list[int] = field(default_factory=list)
     group_slug: str | None = None
+    # Што следи корисникот: групи и/или под-категории. Празно значи сè.
+    # Одделено од `group_slug` намерно - изборот е трајна намера, а
+    # `group_slug` е прелистување ВНАТРЕ во неа (копчињата над списокот).
+    selection: list[str] = field(default_factory=list)
     # Попустите само со картичка за лојалност се прикажуваат означено;
     # со ова може и да се исклучат.
     include_loyalty: bool = True
@@ -146,6 +150,15 @@ def _join_and_filter(query: Select, filters: DiscountFilter) -> Select:
         .where(PriceRow.run_date == filters.run_date, PriceRow.is_discount.is_(True))
     )
 
+    if filters.selection:
+        # Избрана група ја носи целата своја содржина, избрана
+        # под-категорија само себе - истото правило како кај `group_slug`.
+        query = query.where(
+            or_(
+                Category.slug.in_(filters.selection),
+                Group.slug.in_(filters.selection),
+            )
+        )
     if filters.city_slug:
         query = query.where(City.slug == filters.city_slug)
     if filters.store_ids:
@@ -364,6 +377,44 @@ async def latest_run_date(session: AsyncSession) -> date | None:
     )
 
 
+async def read_coverage(
+    session: AsyncSession,
+    run_date: date,
+    city_slug: str | None = None,
+    store_ids: list[int] | None = None,
+) -> tuple[int, int]:
+    """(маркети, продавници) што се ПРОЧИТАНИ за денот.
+
+    Служи празната страница да каже што било проверено. „Нема попуст" без
+    тој број изгледа како дефект; со него е тврдење: гледано е во 341
+    продавница и го нема.
+
+    Се бројат само читањата што поминале. Падна ли извор, тој не смее да
+    влезе во бројот - инаку страницата тврди дека проверила нешто што не
+    проверила.
+    """
+    good = (RunStatus.SUCCESS, RunStatus.EMPTY, RunStatus.UNCHANGED)
+    query = (
+        select(
+            func.count(func.distinct(PricelistRun.chain_id)),
+            func.count(func.distinct(PricelistRun.store_id)),
+        )
+        .where(PricelistRun.run_date == run_date, PricelistRun.status.in_(good))
+    )
+
+    if city_slug or store_ids:
+        query = query.join(Store, PricelistRun.store_id == Store.id)
+    if city_slug:
+        query = query.join(City, Store.city_id == City.id).where(
+            City.slug == city_slug
+        )
+    if store_ids:
+        query = query.where(PricelistRun.store_id.in_(store_ids))
+
+    row = (await session.execute(query)).one()
+    return int(row[0] or 0), int(row[1] or 0)
+
+
 async def read_quality(
     session: AsyncSession, run_date: date
 ) -> list[tuple[str, int, int, int]]:
@@ -455,6 +506,7 @@ __all__ = [
     "counts_by_subcategory",
     "latest_run_date",
     "list_discounts",
+    "read_coverage",
     "read_quality",
     "run_summary",
 ]

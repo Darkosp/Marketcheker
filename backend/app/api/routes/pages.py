@@ -1,8 +1,11 @@
 """HTML страници (Jinja2 + HTMX).
 
-Нема најава и нема обврзен избор: се отвора страницата и се гледаат сите
-денешни попусти. Сè што корисникот ќе избере живее во URL-то, за да може
-линк да се подели и страницата да се освежи без да се изгуби изборот.
+Нема најава и изборот не е обврзен: се отвора страницата и се гледаат сите
+денешни попусти. Кој ќе си одбере што следи (`/izbor`), го гледа само тоа.
+
+Сè што корисникот ќе избере живее во URL-то, за да може линк да се подели
+и страницата да се освежи без да се изгуби изборот. Изборот на производи
+оди и во колаче, за да следното отворање го памети - `app.web.selection`.
 """
 
 from __future__ import annotations
@@ -11,11 +14,12 @@ import math
 from dataclasses import dataclass
 from datetime import date
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import HTMLResponse
 
 from app.api.deps import SessionDep
 from app.catalog.groups import PARENT_OF
+from app.services.catalog import catalog_tree
 from app.services.discounts import (
     DiscountFilter,
     SortBy,
@@ -26,6 +30,7 @@ from app.services.discounts import (
     counts_by_subcategory,
     latest_run_date,
     list_discounts,
+    read_coverage,
     read_quality,
     run_summary,
 )
@@ -36,6 +41,7 @@ from app.services.stats import (
     price_movement,
     top_stores,
 )
+from app.web import selection
 from app.web.templates_env import templates
 
 router = APIRouter(tags=["pages"])
@@ -144,6 +150,25 @@ def _store_ids(raw: list[str] | None) -> list[int]:
     return ids
 
 
+def _remember_selection(response: Response, slugs: list[str]) -> None:
+    """Колачето го памети изборот; празен избор го брише.
+
+    httponly: изборот го чита серверот, не JavaScript. Нема лични
+    податоци внатре - само слугови од каталогот.
+    """
+    if slugs:
+        response.set_cookie(
+            selection.COOKIE_NAME,
+            selection.to_cookie(slugs),
+            max_age=selection.COOKIE_MAX_AGE,
+            httponly=True,
+            samesite="lax",
+            path="/",
+        )
+    else:
+        response.delete_cookie(selection.COOKIE_NAME, path="/")
+
+
 @router.get("/", response_class=HTMLResponse, summary="Денешни попусти")
 async def index(
     request: Request,
@@ -151,6 +176,7 @@ async def index(
     datum: date | None = None,
     grad: str | None = None,
     grupa: str | None = None,
+    izbor: list[str] | None = Query(default=None),
     market: list[str] | None = Query(default=None),
     sortiraj: str = SortBy.DISCOUNT_PCT.value,
     lojalnost: bool = True,
@@ -167,12 +193,16 @@ async def index(
 
     page_size = _clamp_page_size(po_strana)
     stores = _store_ids(market)
+    chosen, chosen_in_url = selection.resolve(
+        izbor, request.cookies.get(selection.COOKIE_NAME)
+    )
 
     def build(group_slug: str | None, *, limit: int, offset: int) -> DiscountFilter:
         return DiscountFilter(
             run_date=run_date,
             city_slug=grad or None,
             group_slug=group_slug,
+            selection=chosen,
             store_ids=stores,
             sort_by=sort_by,
             include_loyalty=lojalnost,
@@ -207,6 +237,8 @@ async def index(
 
     context = {
         "title": "Денешни попусти",
+        "chosen": chosen,
+        "chosen_labels": selection.labels(chosen),
         "run_date": run_date,
         "today": today_local(),
         "is_stale": is_stale,
@@ -223,6 +255,7 @@ async def index(
             "grad_name": city_names.get(grad or "", ""),
             "grupa": grupa or "",
             "grupa_root": selected_group,
+            "izbor": chosen,
             "market": set(stores),
             "sortiraj": sort_by.value,
             "lojalnost": lojalnost,
@@ -232,12 +265,59 @@ async def index(
         "sort_options": SORT_OPTIONS,
     }
 
+    # Празната страница се појавува само кога ИЗБОРОТ останал без попусти.
+    # Бројот на проверени продавници оди со неа: „нема попуст" без него
+    # изгледа како дефект, а со него е тврдење.
+    context["empty_selection"] = bool(chosen) and not total
+    if context["empty_selection"]:
+        chains, store_count = await read_coverage(
+            session, run_date, grad or None, stores
+        )
+        context["coverage"] = {"chains": chains, "stores": store_count}
+
     # HTMX бара само резултатите; копчињата се враќаат одделно
     # (out-of-band), за да се освежи означеното иако се менува само списокот.
     is_htmx = bool(request.headers.get("hx-request"))
     context["oob"] = is_htmx
     template = "partials/results.html" if is_htmx else "index.html"
-    return templates.TemplateResponse(request, template, context)
+
+    response = templates.TemplateResponse(request, template, context)
+    # Колачето се пишува само кога барањето се изјаснило за изборот -
+    # инаку секое прелистување би го препишувало со истото.
+    if chosen_in_url:
+        _remember_selection(response, chosen)
+    return response
+
+
+@router.get("/izbor", response_class=HTMLResponse, summary="Избор на производи")
+async def selection_page(
+    request: Request,
+    session: SessionDep,
+    izbor: list[str] | None = Query(default=None),
+    grad: str | None = None,
+) -> HTMLResponse:
+    """Што следи корисникот.
+
+    Секое ниво е избирливо само по себе: може да се земе цела „Пијалоци и
+    напитоци", или само „Кафе" во неа. Бројките се од целиот каталог, не од
+    денешните попусти - изборот е трајна намера, а „Кафе 0" би изгледало
+    како причина кафето да не се избере.
+
+    Формуларот оди со GET на „/": изборот влегува во URL-то, а страницата
+    со попусти го запишува во колачето.
+    """
+    chosen, _ = selection.resolve(izbor, request.cookies.get(selection.COOKIE_NAME))
+    run_date, _ = await _resolve_date(session, None)
+
+    context = {
+        "title": "Што следиш",
+        "tree": await catalog_tree(session),
+        "cities": await available_cities(session, run_date),
+        "chosen": set(chosen),
+        "chosen_count": len(chosen),
+        "selected": {"grad": grad or ""},
+    }
+    return templates.TemplateResponse(request, "izbor.html", context)
 
 
 @router.get("/sostojba", response_class=HTMLResponse, summary="Состојба на читањата")

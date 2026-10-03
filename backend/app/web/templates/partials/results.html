@@ -12,7 +12,9 @@
   <span id="loading" class="loading" aria-live="polite">се вчитува…</span>
 </div>
 
-{% if not rows %}
+{% if empty_selection %}
+  {% include "partials/empty_selection.html" %}
+{% elif not rows %}
   <p class="empty">
     Нема попусти што одговараат на избраното.<br>
     Пробај со друг град или без филтри.

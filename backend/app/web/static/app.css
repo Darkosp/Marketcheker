@@ -633,3 +633,211 @@ select:focus-visible,
 .move-label { font-size: 0.8rem; color: var(--muted); }
 .move-up .move-value { color: var(--sale); }
 .move-down .move-value { color: var(--accent); }
+
+
+/* ======================= копчиња ======================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 18px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.btn:hover { filter: brightness(1.06); }
+
+.btn-ghost {
+  color: var(--text-soft);
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+.btn-ghost:hover { color: var(--accent); border-color: var(--accent); filter: none; }
+
+
+/* ======================= лентата „следиш" ======================= */
+.picked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  font-size: 0.84rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.picked-label { font-weight: 600; color: var(--muted); }
+.picked-list { flex: 1 1 200px; min-width: 0; color: var(--text-soft); }
+.picked-edit, .picked-clear { white-space: nowrap; font-size: 0.82rem; }
+.picked-clear { color: var(--muted); }
+
+
+/* ======================= страницата со избор ======================= */
+.pick-top { display: grid; gap: 14px; }
+
+.pick-find {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.pick-tree { display: grid; gap: 10px; }
+
+.pick-group {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* Целиот ред е погодлив за тапкање - на телефон само квадратчето е малку. */
+.pick-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+
+/* Атрибутот `hidden` носи само `display: none` од прелистувачот, што
+   `display: flex` погоре го победува - филтрирањето на дрвото не криеше
+   ништо. */
+.pick-row[hidden], .pick-group[hidden] { display: none; }
+
+.pick-row input {
+  flex: none;
+  width: 19px;
+  height: 19px;
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.pick-name { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 0.95rem; }
+
+.pick-count {
+  flex: none;
+  font-size: 0.78rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pick-row:has(input:checked) { background: var(--accent-soft); }
+.pick-row:has(input:checked) .pick-name { color: var(--accent); }
+
+/* Под-категорија под избрана група е излишна: групата ја носи. */
+.pick-row-off { opacity: 0.45; cursor: default; }
+
+.pick-deeper { border-top: 1px solid var(--line-soft); }
+
+.pick-deeper > summary {
+  padding: 9px 14px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  cursor: pointer;
+  list-style: none;
+}
+
+.pick-deeper > summary::-webkit-details-marker { display: none; }
+.pick-deeper > summary::after { content: " ▾"; }
+.pick-deeper[open] > summary::after { content: " ▴"; }
+.pick-deeper > summary:hover { color: var(--accent); }
+
+.pick-subs { padding: 0 0 6px; border-top: 1px solid var(--line-soft); }
+
+.pick-row-sub { min-height: 42px; padding-left: 26px; }
+.pick-row-sub .pick-name { font-weight: 500; font-size: 0.9rem; }
+
+.pick-none { margin: 0; font-size: 0.85rem; color: var(--muted); }
+
+/* Лентата со копчето стои на дното на екранот: со 66 категории, инаку
+   треба да се лизга до крај за да се потврди изборот. */
+.pick-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 calc(-1 * var(--gutter));
+  padding: 12px var(--gutter);
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+}
+
+.pick-chosen { font-size: 0.84rem; color: var(--muted); }
+.pick-actions { display: flex; gap: 8px; margin-left: auto; }
+
+
+/* ======================= нема попуст на избраното ======================= */
+.empty-pick {
+  padding: 36px 20px 40px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.empty-pick-mark {
+  margin: 0 0 10px;
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--line);
+}
+
+.empty-pick-title {
+  margin: 0 auto 10px;
+  max-width: 30ch;
+  font-size: 1.1rem;
+  font-weight: 650;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+
+.empty-pick-checked {
+  margin: 0 auto;
+  max-width: 48ch;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.empty-pick-label { font-weight: 600; }
+
+.empty-pick-note {
+  margin: 12px auto 0;
+  max-width: 44ch;
+  font-size: 0.82rem;
+  color: var(--warn);
+}
+
+.empty-pick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin: 22px 0 0;
+}
+
+@media (min-width: 640px) {
+  .pick-top { grid-template-columns: 1fr 1fr; align-items: end; }
+}

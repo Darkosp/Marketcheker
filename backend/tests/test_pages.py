@@ -42,6 +42,12 @@ from app.api.routes.pages import PAGE_SIZES, Pagination
         "?lojalnost=false&lojalnost=true",
         "?ednodnevni=false",
         "?datum=2020-01-01",
+        # Изборот на производи - празен, непознат, повторен, натрупан.
+        "?izbor=",
+        "?izbor=nepostoecko",
+        "?izbor=kafe&izbor=kafe",
+        "?izbor=pijaloci&izbor=kafe",
+        "?izbor=" + "&izbor=".join(["kafe"] * 200),
     ],
 )
 async def test_page_never_returns_validation_error(
@@ -53,6 +59,133 @@ async def test_page_never_returns_validation_error(
 
 async def test_status_page_loads(client: AsyncClient) -> None:
     assert (await client.get("/sostojba")).status_code == 200
+
+
+@pytest.mark.parametrize(
+    "query", ["", "?izbor=", "?izbor=kafe", "?izbor=nepostoecko", "?grad=skopje"]
+)
+async def test_selection_page_never_returns_validation_error(
+    client: AsyncClient, query: str
+) -> None:
+    response = await client.get(f"/izbor{query}")
+    assert response.status_code == 200, response.text
+
+
+# ==========================================================================
+# Изборот на производи
+# ==========================================================================
+async def test_every_level_is_selectable(client: AsyncClient) -> None:
+    """Групата и под-категоријата имаат свое поле за штиклирање.
+
+    Тоа е целата поента: некој следи „Пијалоци", некој само „Кафе".
+    """
+    html = (await client.get("/izbor")).text
+    assert 'name="izbor" value="pijaloci"' in html
+    assert 'name="izbor" value="kafe"' in html
+
+
+async def test_picker_sends_an_explicit_empty_choice(client: AsyncClient) -> None:
+    """Без празното поле, праќање без ниту еден штиклиран производ би го
+    вратило стариот избор од колачето.
+    """
+    html = (await client.get("/izbor")).text
+    assert '<input type="hidden" name="izbor" value="">' in html
+
+
+async def test_picker_marks_what_is_already_chosen(client: AsyncClient) -> None:
+    """Отворање на изборот ги покажува тековно избраните, не празно."""
+    html = (await client.get("/izbor?izbor=kafe")).text
+    box = html[html.index('value="kafe"') : html.index('value="kafe"') + 160]
+    assert "checked" in box
+
+
+async def test_picker_opens_the_level_that_holds_the_choice(
+    client: AsyncClient,
+) -> None:
+    """Избрано „Кафе" значи отворена „Пијалоци" - инаку изборот е скриен."""
+    assert "<details class=\"pick-deeper\" open>" in (
+        await client.get("/izbor?izbor=kafe")
+    ).text
+
+
+async def test_choice_is_remembered_in_a_cookie(client: AsyncClient) -> None:
+    response = await client.get("/?izbor=kafe&izbor=masla")
+    # Редоследот е од каталогот, не од URL-то. Разделникот е точка: запирка
+    # во колаче се бега („masla,kafe") и памтењето тивко откажува.
+    assert response.cookies.get("izbor") == "masla.kafe"
+
+
+async def test_remembered_choice_applies_without_the_parameter(
+    client: AsyncClient,
+) -> None:
+    await client.get("/?izbor=kafe")
+    html = (await client.get("/")).text
+    assert "Следиш:" in html
+    assert "Кафе" in html
+
+
+async def test_a_choice_of_several_survives_the_cookie(client: AsyncClient) -> None:
+    """Регресија: со запирка како разделник, прелистувачот го враќаше
+    наводничено колачето и изборот од повеќе категории се губеше цел.
+    """
+    await client.get("/?izbor=kafe&izbor=masla&izbor=pelenki")
+    html = (await client.get("/")).text
+    for name in ("Кафе", "Масла и масти", "Пелени и марамици"):
+        assert name in html
+
+
+async def test_an_empty_choice_forgets_the_cookie(client: AsyncClient) -> None:
+    await client.get("/?izbor=kafe")
+    assert client.cookies.get("izbor") == "kafe"
+    await client.get("/?izbor=")
+    assert not client.cookies.get("izbor")
+
+
+async def test_choice_travels_in_hidden_fields(client: AsyncClient) -> None:
+    """Инаку страничењето и подредувањето го губат изборот - истата грешка
+    што веќе се случи со категоријата.
+    """
+    html = (await client.get("/?izbor=kafe")).text
+    assert '<input type="hidden" name="izbor" value="kafe">' in html
+    assert '<input type="hidden" name="izbor" value="">' in html
+
+
+# ==========================================================================
+# Празната страница кога нема попуст на избраното
+# ==========================================================================
+async def test_empty_selection_says_what_was_checked(client: AsyncClient) -> None:
+    """Непостоечкиот град гарантира нула резултати, без зависност од тоа
+    што има во базата денес.
+    """
+    html = (await client.get("/?izbor=kafe&grad=nepostoecki-grad")).text
+    assert "Денес нема попуст на ниту еден од избраните производи." in html
+    assert "Проверени:" in html
+    assert "Кафе" in html
+
+
+async def test_empty_selection_offers_a_way_out(client: AsyncClient) -> None:
+    html = (await client.get("/?izbor=kafe&grad=nepostoecki-grad")).text
+    assert 'href="/izbor' in html
+    assert 'href="/?izbor="' in html
+
+
+async def test_empty_selection_hides_the_category_buttons(
+    client: AsyncClient,
+) -> None:
+    """„Празна страница" значи празна: копчиња со нули не се прикажуваат.
+
+    Садот останува, за да HTMX има што да замени при следното барање.
+    """
+    html = (await client.get("/?izbor=kafe&grad=nepostoecki-grad")).text
+    assert 'id="kategorii"' in html
+    assert 'class="chips"' not in html
+
+
+async def test_no_selection_keeps_the_old_empty_message(client: AsyncClient) -> None:
+    """Без избор, празниот резултат е вина на филтрите - и тоа го кажува."""
+    html = (await client.get("/?grad=nepostoecki-grad")).text
+    assert "Денес нема попуст на ниту еден од избраните производи." not in html
+    assert "Нема попусти што одговараат на избраното." in html
 
 
 # ==========================================================================
