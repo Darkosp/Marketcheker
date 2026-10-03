@@ -337,62 +337,60 @@ select:focus-visible,
 
 .card-loyalty { border-left: 3px solid var(--loyalty); }
 
-.card-top { display: flex; align-items: flex-start; gap: 10px; }
-
 .name {
-  flex: 1;
   margin: 0;
   font-size: 0.92rem;
   font-weight: 560;
-  line-height: 1.3;
+  line-height: 1.35;
   letter-spacing: -0.005em;
 }
 
-.pct {
-  flex: 0 0 auto;
-  padding: 3px 7px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--sale);
-  background: var(--sale-soft);
-  border-radius: 6px;
-}
-
-.pct-mid { color: #fff; background: #e0533f; }
-.pct-high { color: #fff; background: var(--sale); }
-
-@media (prefers-color-scheme: dark) {
-  .pct-mid, .pct-high { color: #2a0a0f; }
-  .pct-mid { background: #ff9a7a; }
-}
-
+/* Трите броја во ред: редовна, со попуст, заштеда. Секој со ситна ознака
+   над себе - без неа „700 500 200" не кажува ништо. */
 .prices {
   display: flex;
-  align-items: baseline;
   flex-wrap: wrap;
-  gap: 8px;
+  align-items: flex-end;
+  gap: 4px 18px;
 }
 
-.price-new {
-  font-size: 1.32rem;
+.price-was, .price-now, .price-save { display: grid; gap: 1px; }
+
+.price-cap {
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.price-was s {
+  font-size: 0.92rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.price-now strong {
+  font-size: 1.3rem;
   font-weight: 700;
-  line-height: 1;
+  line-height: 1.05;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Заштедата е бројот поради кој страницата постои - таа е обоената. */
+.price-save strong {
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.05;
   color: var(--sale);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.02em;
 }
 
-.price-new small { margin-left: 2px; font-size: 0.6em; font-weight: 600; }
-
-.price-old {
-  font-size: 0.85rem;
-  color: var(--muted);
-  font-variant-numeric: tabular-nums;
-}
-
 .price-unit {
-  margin-left: auto;
+  margin: 0;
   font-size: 0.76rem;
   color: var(--muted);
   font-variant-numeric: tabular-nums;

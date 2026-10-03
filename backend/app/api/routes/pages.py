@@ -50,8 +50,11 @@ router = APIRouter(tags=["pages"])
 PAGE_SIZES: tuple[int, ...] = (24, 48, 96, 200)
 DEFAULT_PAGE_SIZE = PAGE_SIZES[1]
 
+# Процентот не се нуди: 50% на производ од 100 денари е 50 денари, а 28%
+# на кафе од 700 е 200. Старите линкови со `sortiraj=popust` и натаму
+# работат - само не се предлага.
 SORT_OPTIONS: tuple[tuple[str, str], ...] = (
-    (SortBy.DISCOUNT_PCT.value, "најголем попуст"),
+    (SortBy.SAVINGS.value, "најголема заштеда"),
     (SortBy.PRICE_ASC.value, "најниска цена"),
     (SortBy.UNIT_PRICE.value, "најевтино по кг/л"),
     (SortBy.STORE.value, "по маркет"),
@@ -178,7 +181,7 @@ async def index(
     grupa: str | None = None,
     izbor: list[str] | None = Query(default=None),
     market: list[str] | None = Query(default=None),
-    sortiraj: str = SortBy.DISCOUNT_PCT.value,
+    sortiraj: str = SortBy.SAVINGS.value,
     lojalnost: bool = True,
     ednodnevni: bool = False,
     strana: int = 1,
@@ -189,7 +192,7 @@ async def index(
     try:
         sort_by = SortBy(sortiraj)
     except ValueError:
-        sort_by = SortBy.DISCOUNT_PCT
+        sort_by = SortBy.SAVINGS
 
     page_size = _clamp_page_size(po_strana)
     stores = _store_ids(market)

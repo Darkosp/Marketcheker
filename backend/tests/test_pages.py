@@ -210,6 +210,24 @@ async def test_checkboxes_send_a_value_when_unchecked(client: AsyncClient) -> No
     assert '<input type="hidden" name="ednodnevni" value="false">' in html
 
 
+async def test_cards_show_money_not_percent(client: AsyncClient) -> None:
+    """Трите броја се редовна, со попуст и заштеда - без процент."""
+    html = (await client.get("/")).text
+    for label in ("редовна", "со попуст", "заштеда"):
+        assert label in html
+    assert "pct-high" not in html
+
+
+async def test_savings_is_the_default_order(client: AsyncClient) -> None:
+    html = (await client.get("/")).text
+    assert '<option value="zasteda" selected>' in html.replace(" >", ">")
+
+
+async def test_old_percent_links_still_work(client: AsyncClient) -> None:
+    """Линк со стариот начин на подредување не смее да падне."""
+    assert (await client.get("/?sortiraj=popust")).status_code == 200
+
+
 async def test_page_size_options_are_offered(client: AsyncClient) -> None:
     html = (await client.get("/")).text
     for size in PAGE_SIZES:

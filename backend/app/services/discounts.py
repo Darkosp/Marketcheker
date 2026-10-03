@@ -47,7 +47,11 @@ Group = aliased(ProductCategory, name="grupa")
 class SortBy(StrEnum):
     """Начини на подредување што ги бара спецификацијата."""
 
-    DISCOUNT_PCT = "popust"  # најголем попуст прво
+    # Колку денари се заштедуваат - главната мерка. Процентот лаже за
+    # ситните производи: 50% на производ од 100 денари е 50 денари, а
+    # 28% на кафе од 700 е 200.
+    SAVINGS = "zasteda"
+    DISCOUNT_PCT = "popust"  # најголем попуст прво (стари линкови)
     PRICE_ASC = "cena"  # најниска цена прво
     UNIT_PRICE = "edinecna"  # најевтино по кг/л - „каде е најевтино"
     STORE = "market"
@@ -120,6 +124,18 @@ class DiscountRow:
         return f"{self.chain_name} · {self.store_count} продавници"
 
     @property
+    def savings(self) -> Decimal | None:
+        """Колку денари се заштедуваат.
+
+        Не секој ценовник ја пишува редовната цена; тогаш заштедата не се
+        знае и не се прикажува - подобро отколку да се измисли нула.
+        """
+        if self.regular_price is None or self.discount_price is None:
+            return None
+        difference = self.regular_price - self.discount_price
+        return difference if difference > 0 else None
+
+    @property
     def is_loyalty_only(self) -> bool:
         """Важи само со картичка за лојалност - се прикажува означено."""
         return self.promo_type is PromoType.LOYALTY
@@ -180,6 +196,12 @@ def _join_and_filter(query: Select, filters: DiscountFilter) -> Select:
     return query
 
 
+# Заштедата во денари: разликата меѓу редовната и акциската цена. Двете
+# можат да фалат (не секој ценовник ја пишува редовната), па редовите без
+# неа одат на крај наместо да се преправаат дека заштедата е нула.
+SAVINGS = PriceRow.regular_price - PriceRow.discount_price
+
+
 # Колоните по кои се спојуваат редовите. Цената е меѓу нив намерно:
 # ист производ по РАЗЛИЧНА цена останува одделен запис, за да не измислиме
 # цена што ја нема никаде.
@@ -205,6 +227,8 @@ def _aggregated_ordering(filters: DiscountFilter):
     па смеат да се користат директно.
     """
     match filters.sort_by:
+        case SortBy.SAVINGS:
+            return (SAVINGS.desc().nullslast(), Product.raw_name)
         case SortBy.DISCOUNT_PCT:
             return (PriceRow.discount_pct.desc().nullslast(), Product.raw_name)
         case SortBy.PRICE_ASC:

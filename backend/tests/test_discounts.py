@@ -484,3 +484,51 @@ async def test_empty_groups_are_not_offered(seeded) -> None:
     """Копче што води во ништо само го оптоварува изборот."""
     tree = await catalog_tree(seeded)
     assert all(node.product_count > 0 for node in tree)
+
+
+# ==========================================================================
+# Заштедата во денари
+# ==========================================================================
+async def test_savings_is_the_difference_between_the_two_prices(seeded) -> None:
+    rows = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, selection=["masla"])
+    )
+    assert [row.savings for row in rows] == [Decimal("250")]
+
+
+async def test_savings_sort_is_not_the_same_as_percent_sort(seeded) -> None:
+    """Токму поради ова процентот не се прикажува.
+
+    „ТАЈМ АУТ" има најголем процент (59%), но заштедува 59 денари;
+    маслиновото масло е на 35% и заштедува 250.
+    """
+    by_money = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, sort_by=SortBy.SAVINGS)
+    )
+    by_percent = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, sort_by=SortBy.DISCOUNT_PCT)
+    )
+    assert by_money[0].product_name == "МАСЛО МАСЛИНОВО 0.75Л"
+    assert by_percent[0].product_name == "ТАЈМ АУТ ЛЕШНИК 50 ГР"
+
+
+async def test_savings_sort_goes_from_biggest_down(seeded) -> None:
+    rows = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, sort_by=SortBy.SAVINGS)
+    )
+    amounts = [row.savings for row in rows if row.savings is not None]
+    assert amounts == sorted(amounts, reverse=True)
+
+
+async def test_rows_without_a_regular_price_have_no_savings(db_session) -> None:
+    """Не секој ценовник ја пишува редовната цена. Тогаш заштедата не се
+    знае - подобро отколку да се прикаже нула.
+    """
+    await _seed(
+        db_session,
+        _Reader,
+        SKOPJE_STORE,
+        [_row("КАФЕ БЕЗ РЕДОВНА ЦЕНА", regular_price=None)],
+    )
+    rows = await list_discounts(db_session, DiscountFilter(run_date=RUN_DATE))
+    assert rows[0].savings is None
