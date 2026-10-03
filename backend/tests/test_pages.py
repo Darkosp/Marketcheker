@@ -62,57 +62,116 @@ async def test_status_page_loads(client: AsyncClient) -> None:
 
 
 @pytest.mark.parametrize(
-    "query", ["", "?izbor=", "?izbor=kafe", "?izbor=nepostoecko", "?grad=skopje"]
+    "query",
+    [
+        "",
+        "?izbor=",
+        "?izbor=kafe",
+        "?izbor=nepostoecko",
+        "?grad=skopje",
+        "?otvori=nepostoecko",
+        "?otvori=kafe~нескафе",
+        "?izbor=kafe~нескафе",
+        "?dodaj=",
+        "?dodaj=нескафе&otvori=nepostoecko",
+    ],
 )
 async def test_selection_page_never_returns_validation_error(
     client: AsyncClient, query: str
 ) -> None:
-    response = await client.get(f"/izbor{query}")
+    response = await client.get(f"/izbor{query}", follow_redirects=True)
     assert response.status_code == 200, response.text
 
 
 # ==========================================================================
 # Изборот на производи
 # ==========================================================================
-async def test_every_level_is_selectable(client: AsyncClient) -> None:
-    """Групата и под-категоријата имаат свое поле за штиклирање.
-
-    Тоа е целата поента: некој следи „Пијалоци", некој само „Кафе".
-    """
+async def test_the_first_step_offers_the_groups(client: AsyncClient) -> None:
     html = (await client.get("/izbor")).text
-    assert 'name="izbor" value="pijaloci"' in html
-    assert 'name="izbor" value="kafe"' in html
+    assert "Пијалоци и напитоци" in html
+    assert "otvori=pijaloci" in html
 
 
-async def test_picker_sends_an_explicit_empty_choice(client: AsyncClient) -> None:
-    """Без празното поле, праќање без ниту еден штиклиран производ би го
-    вратило стариот избор од колачето.
-    """
-    html = (await client.get("/izbor")).text
-    assert '<input type="hidden" name="izbor" value="">' in html
+async def test_opening_a_group_shows_its_subcategories(client: AsyncClient) -> None:
+    html = (await client.get("/izbor?otvori=pijaloci")).text
+    assert "Кафе" in html
+    assert "otvori=kafe" in html
 
 
-async def test_picker_marks_what_is_already_chosen(client: AsyncClient) -> None:
-    """Отворање на изборот ги покажува тековно избраните, не празно."""
-    html = (await client.get("/izbor?izbor=kafe")).text
-    box = html[html.index('value="kafe"') : html.index('value="kafe"') + 160]
-    assert "checked" in box
+async def test_every_level_can_be_taken_whole(client: AsyncClient) -> None:
+    """Секое ниво може да биде последно - и групата, и под-категоријата."""
+    group = (await client.get("/izbor?otvori=pijaloci")).text
+    assert "izbor=pijaloci" in group
+
+    category = (await client.get("/izbor?otvori=kafe")).text
+    assert "izbor=kafe" in category
 
 
-async def test_picker_opens_the_level_that_holds_the_choice(
+async def test_the_deepest_level_comes_from_the_real_names(
     client: AsyncClient,
 ) -> None:
-    """Избрано „Кафе" значи отворена „Пијалоци" - инаку изборот е скриен."""
-    assert "<details class=\"pick-deeper\" open>" in (
-        await client.get("/izbor?izbor=kafe")
-    ).text
+    """Третото ниво НЕ е измислено: зборовите се вадат од називите во
+    ценовниците, па „Нескафе" е таму затоа што постои, не затоа што некој
+    се сетил на него.
+    """
+    html = (await client.get("/izbor?otvori=kafe")).text
+    assert "НЕСКАФЕ" in html
+    assert "izbor=kafe~" in html
+
+
+async def test_a_brand_can_be_typed_in(client: AsyncClient) -> None:
+    html = (await client.get("/izbor?otvori=kafe")).text
+    assert 'name="dodaj"' in html
+
+
+async def test_typing_a_brand_adds_it_and_cleans_the_url(
+    client: AsyncClient,
+) -> None:
+    """По додавањето се оди на чисто URL, за да освежување не го додаде
+    истото двапати.
+    """
+    response = await client.get(
+        "/izbor?otvori=kafe&izbor=&dodaj=нескафе", follow_redirects=False
+    )
+    assert response.status_code == 303
+    # `~` не се кодира - станува „izbor=kafe~<бренд>".
+    assert "izbor=kafe~" in response.headers["location"]
+    assert "dodaj" not in response.headers["location"]
+
+
+async def test_a_useless_word_is_not_added(client: AsyncClient) -> None:
+    """Еден знак би фатил сè - тоа не е стеснување."""
+    response = await client.get(
+        "/izbor?otvori=kafe&izbor=&dodaj=а", follow_redirects=False
+    )
+    assert response.status_code == 303
+    assert "kafe~" not in response.headers["location"]
+
+
+async def test_the_walk_keeps_what_is_already_chosen(client: AsyncClient) -> None:
+    """Слегувањето ниво подолу не смее да го изгуби веќе избраното."""
+    html = (await client.get("/izbor?izbor=masla&otvori=pijaloci")).text
+    assert "izbor=masla" in html
+    assert "Масла и масти" in html
+
+
+async def test_a_chosen_thing_can_be_dropped(client: AsyncClient) -> None:
+    html = (await client.get("/izbor?izbor=masla&izbor=kafe")).text
+    # Врската за отстранување ја носи листата БЕЗ тој избор.
+    assert "/izbor?izbor=kafe" in html
+
+
+async def test_the_city_survives_the_walk(client: AsyncClient) -> None:
+    html = (await client.get("/izbor?grad=skopje&otvori=pijaloci")).text
+    assert "grad=skopje" in html
 
 
 async def test_choice_is_remembered_in_a_cookie(client: AsyncClient) -> None:
     response = await client.get("/?izbor=kafe&izbor=masla")
-    # Редоследот е од каталогот, не од URL-то. Разделникот е точка: запирка
-    # во колаче се бега („masla,kafe") и памтењето тивко откажува.
-    assert response.cookies.get("izbor") == "masla.kafe"
+    # Редоследот е од каталогот, не од URL-то. Разделникот е знак на
+    # викање: запирка во колаче се бега („masla,kafe"), а точката ја
+    # има во брендови како „dr.oetker".
+    assert response.cookies.get("izbor") == "masla!kafe"
 
 
 async def test_remembered_choice_applies_without_the_parameter(

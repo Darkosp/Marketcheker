@@ -2,17 +2,23 @@
 
    Изборот живее во скриени полиња: формуларот го праќа со секое барање, па
    страничењето, подредувањето и филтрите не го губат. #}
-{% for slug in selected.izbor %}
-  <input type="hidden" name="izbor" value="{{ slug }}">
+{% for pick in selected.izbor %}
+  <input type="hidden" name="izbor" value="{{ pick.key }}">
 {% endfor %}
 {# Празната вредност оди секогаш, за да барањето биде изјаснето за изборот
    и колачето да не го враќа избришаното. #}
 <input type="hidden" name="izbor" value="">
 
 <div class="picked">
-  {% if chosen_labels %}
+  {% if chosen %}
     <span class="picked-label">Следиш:</span>
-    <span class="picked-list">{{ chosen_labels | join(" · ") }}</span>
+    {# Секој избор е свое зрно: „Кафе · нескафе" и „Кафе · јакобс" споени
+       со истиот знак се читаат како еден долг низ. #}
+    <span class="picked-list">
+      {% for pick in chosen %}
+        <span class="picked-one">{{ pick.label }}</span>
+      {% endfor %}
+    </span>
     <a class="picked-edit" href="/izbor{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">промени</a>
     <a class="picked-clear" href="/?izbor=">сите производи</a>
   {% else %}

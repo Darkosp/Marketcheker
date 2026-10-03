@@ -13,13 +13,15 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from datetime import date
+from urllib.parse import urlencode
 
 from fastapi import APIRouter, Query, Request, Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.api.deps import SessionDep
-from app.catalog.groups import PARENT_OF
-from app.services.catalog import catalog_tree
+from app.catalog.groups import PARENT_OF, category_slugs
+from app.catalog.picks import Pick, clean_term
+from app.services.catalog import catalog_tree, suggested_terms
 from app.services.discounts import (
     DiscountFilter,
     SortBy,
@@ -45,6 +47,8 @@ from app.web import selection
 from app.web.templates_env import templates
 
 router = APIRouter(tags=["pages"])
+
+CATEGORY_SLUGS = frozenset(category_slugs())
 
 # Колку попусти по страница.
 PAGE_SIZES: tuple[int, ...] = (24, 48, 96, 200)
@@ -205,7 +209,7 @@ async def index(
             run_date=run_date,
             city_slug=grad or None,
             group_slug=group_slug,
-            selection=chosen,
+            picks=chosen,
             store_ids=stores,
             sort_by=sort_by,
             include_loyalty=lojalnost,
@@ -292,33 +296,110 @@ async def index(
     return response
 
 
+def _izbor_url(
+    picks: list[Pick], open_slug: str | None = None, grad: str | None = None
+) -> str:
+    """Врска кон страницата со избор што ја носи целата листа.
+
+    Изборот се гради со обични врски, не со формулар: така отворањето на
+    ниво подолу не го губи она што е веќе избрано, и секоја состојба има
+    свое URL што може да се освежи и да се подели.
+    """
+    parts = [("izbor", pick.key) for pick in picks] or [("izbor", "")]
+    if open_slug:
+        parts.append(("otvori", open_slug))
+    if grad:
+        # Градот доаѓа од филтрите на главната страница и мора да ја
+        # преживее целата прошетка низ нивоата.
+        parts.append(("grad", grad))
+    return "/izbor?" + urlencode(parts)
+
+
+def _linker(picks: list[Pick], grad: str | None):
+    """Градител на врските за страницата со избор.
+
+    Шаблонот не склопува URL-а сам: тука се знае дека празниот избор мора да
+    замине како `izbor=`, инаку колачето ќе го врати избришаното.
+    """
+
+    def link(
+        add: str | None = None,
+        drop: str | None = None,
+        open_slug: str | None = None,
+        show: bool = False,
+    ) -> str:
+        keys = [pick.key for pick in picks]
+        if add and add not in keys:
+            keys.append(add)
+        if drop:
+            keys = [key for key in keys if key != drop]
+
+        after = selection.normalise(keys)
+        if show:
+            parts = [("izbor", pick.key) for pick in after] or [("izbor", "")]
+            if grad:
+                parts.append(("grad", grad))
+            return "/?" + urlencode(parts)
+        return _izbor_url(after, open_slug, grad)
+
+    return link
+
+
 @router.get("/izbor", response_class=HTMLResponse, summary="Избор на производи")
 async def selection_page(
     request: Request,
     session: SessionDep,
     izbor: list[str] | None = Query(default=None),
+    otvori: str | None = None,
+    dodaj: str | None = None,
     grad: str | None = None,
-) -> HTMLResponse:
-    """Што следи корисникот.
+) -> Response:
+    """Што следи корисникот - чекор по чекор.
 
-    Секое ниво е избирливо само по себе: може да се земе цела „Пијалоци и
-    напитоци", или само „Кафе" во неа. Бројките се од целиот каталог, не од
-    денешните попусти - изборот е трајна намера, а „Кафе 0" би изгледало
-    како причина кафето да не се избере.
+    Прво групите, потоа под-категориите, потоа зборовите од вистинските
+    називи (вид, бренд, грамажа). **Секое ниво може да биде последно**: може
+    да се земе цела „Пијалоци и напитоци", или да се слезе до „Нескафе".
 
-    Формуларот оди со GET на „/": изборот влегува во URL-то, а страницата
-    со попусти го запишува во колачето.
+    Бројките се од целиот каталог, не од денешните попусти - изборот е
+    трајна намера, а „Кафе 0" би изгледало како причина кафето да не се
+    избере.
     """
     chosen, _ = selection.resolve(izbor, request.cookies.get(selection.COOKIE_NAME))
-    run_date, _ = await _resolve_date(session, None)
 
+    # Напишан бренд: се додава и се враќа на чисто URL, за да освежување на
+    # страницата не го додаде истото двапати.
+    if dodaj:
+        term = clean_term(dodaj)
+        if term:
+            added = Pick(category=otvori if otvori in CATEGORY_SLUGS else None,
+                         terms=(term,))
+            chosen = selection.normalise([p.key for p in [*chosen, added]])
+        return RedirectResponse(
+            _izbor_url(chosen, otvori, grad), status_code=303
+        )
+
+    tree = await catalog_tree(session)
+    by_slug = {node.slug: node for node in tree}
+    for node in tree:
+        by_slug.update({child.slug: child for child in node.children})
+
+    node = by_slug.get(otvori or "")
     context = {
         "title": "Што следиш",
-        "tree": await catalog_tree(session),
-        "cities": await available_cities(session, run_date),
-        "chosen": set(chosen),
-        "chosen_count": len(chosen),
+        "chosen": chosen,
+        "chosen_keys": {pick.key for pick in chosen},
+        "node": node,
+        "parent": by_slug.get(PARENT_OF.get(node.slug, "")) if node else None,
+        "options": node.children if node else tree,
+        # Зборовите имаат смисла само на дно: над нив стојат под-категории,
+        # кои се поточен избор од кој било збор.
+        "terms": (
+            await suggested_terms(session, node.slug)
+            if node and not node.children
+            else []
+        ),
         "selected": {"grad": grad or ""},
+        "link": _linker(chosen, grad),
     }
     return templates.TemplateResponse(request, "izbor.html", context)
 

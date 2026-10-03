@@ -8,11 +8,14 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
+from app.catalog.groups import category_names
 from app.models import Product, ProductCategory
 
 
@@ -80,4 +83,109 @@ async def catalog_tree(session: AsyncSession) -> list[CategoryNode]:
     return [node for node in groups.values() if node.product_count > 0]
 
 
-__all__ = ["CategoryNode", "catalog_tree"]
+# ==========================================================================
+# Трето ниво: вид, бренд и грамажа - извлечени од вистинските називи
+# ==========================================================================
+# Зборовите НЕ се измислуваат однапред. „Кафе во зрно" звучи како очигледно
+# подниво, а има 12 производа; „готови ладни кафиња" никому не му падна на
+# памет, а има 294. Затоа списокот расте од тоа што навистина пишува во
+# ценовниците.
+#
+# Поделбата на букви и бројки е доволна за да се одвои грамажата („200ГР")
+# од останатото („НЕСКАФЕ", „ИНСТАНТ"). Вид и бренд НЕ се делат: за тоа
+# треба човек да потврди - „НЕСКАФЕ" е бренд, „КАПУЧИНО" е вид, а
+# фреквенцијата не ги разликува.
+_WORDS = "[^0-9A-Za-zЀ-ӿ]+"
+
+# Поретко од ова не е избор, туку случајност.
+MIN_TERM_PRODUCTS = 3
+
+# Збор што е во речиси секој назив не стеснува ништо.
+MAX_TERM_COVERAGE = 0.9
+
+# Единици мерка и предлози: се појавуваат насекаде и не кажуваат ништо за
+# тоа што е производот. Пократките од три букви („ГР", „ВО", „ЗА") паѓаат
+# уште во упитот.
+_NOISE = frozenset({"КОМ", "ПАР", "ПАК", "ЛИТ", "МЛТ", "ГРА", "ДЕН"})
+
+_PACKAGE = re.compile(r"^\d+([.,]\d+)?(Г|ГР|КГ|МЛ|Л|КОМ|Г\.|X\d+)?$")
+
+
+@dataclass(slots=True)
+class Term:
+    """Збор од називите по кој може да се стесни изборот."""
+
+    text: str
+    products: int
+
+    @property
+    def is_package(self) -> bool:
+        """Грамажа („200ГР") наспроти вид или бренд („НЕСКАФЕ")."""
+        return bool(_PACKAGE.match(self.text))
+
+
+async def suggested_terms(
+    session: AsyncSession, category_slug: str, limit: int = 30
+) -> list[Term]:
+    """Зборовите по кои вреди да се стесни една категорија.
+
+    Се вадат од називите во таа категорија и се подредуваат по бројот на
+    производи. Зборот од самото име на категоријата се вади: „КАФЕ" е во
+    565 од 925 кафиња и не стеснува ништо.
+    """
+    query = text(
+        f"""
+        WITH vo_kategorija AS (
+            SELECT p.id, upper(p.raw_name) AS naziv
+            FROM product p
+            JOIN product_category c ON c.id = p.category_id
+            LEFT JOIN product_category g ON g.id = c.parent_id
+            WHERE c.slug = :slug OR g.slug = :slug
+        ), zborovi AS (
+            SELECT k.id, w AS zbor
+            FROM vo_kategorija k,
+                 unnest(regexp_split_to_array(k.naziv, '{_WORDS}')) AS w
+            WHERE length(w) >= 3
+        )
+        SELECT zbor, count(DISTINCT id) AS kolku
+        FROM zborovi
+        GROUP BY zbor
+        HAVING count(DISTINCT id) >= :minimum
+        ORDER BY kolku DESC
+        LIMIT :limit
+        """
+    )
+    rows = (
+        await session.execute(
+            query,
+            {"slug": category_slug, "minimum": MIN_TERM_PRODUCTS, "limit": limit * 2},
+        )
+    ).all()
+    if not rows:
+        return []
+
+    parent = aliased(ProductCategory, name="roditel")
+    total = await session.scalar(
+        select(func.count(Product.id))
+        .join(ProductCategory, ProductCategory.id == Product.category_id)
+        .outerjoin(parent, parent.id == ProductCategory.parent_id)
+        .where(
+            or_(
+                ProductCategory.slug == category_slug,
+                parent.slug == category_slug,
+            )
+        )
+    )
+
+    own_words = set(re.split(_WORDS, category_names().get(category_slug, "").upper()))
+    ceiling = (total or 0) * MAX_TERM_COVERAGE
+
+    terms = [
+        Term(text=word, products=count)
+        for word, count in rows
+        if word not in own_words and word not in _NOISE and count <= ceiling
+    ]
+    return terms[:limit]
+
+
+__all__ = ["CategoryNode", "Term", "catalog_tree", "suggested_terms"]

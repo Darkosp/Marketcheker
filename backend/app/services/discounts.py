@@ -12,10 +12,11 @@ from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.catalog.picks import Pick, like_pattern
 from app.models import (
     Chain,
     City,
@@ -66,10 +67,10 @@ class DiscountFilter:
     city_slug: str | None = None
     store_ids: list[int] = field(default_factory=list)
     group_slug: str | None = None
-    # Што следи корисникот: групи и/или под-категории. Празно значи сè.
-    # Одделено од `group_slug` намерно - изборот е трајна намера, а
-    # `group_slug` е прелистување ВНАТРЕ во неа (копчињата над списокот).
-    selection: list[str] = field(default_factory=list)
+    # Што следи корисникот. Празно значи сè. Одделено од `group_slug`
+    # намерно - изборот е трајна намера, а `group_slug` е прелистување
+    # ВНАТРЕ во неа (копчињата над списокот).
+    picks: list[Pick] = field(default_factory=list)
     # Попустите само со картичка за лојалност се прикажуваат означено;
     # со ова може и да се исклучат.
     include_loyalty: bool = True
@@ -149,6 +150,27 @@ class DiscountRow:
         return f"{self.unit_price_base:.0f} ден/{unit}"
 
 
+def _pick_clause(pick: Pick):
+    """Еден избор: категоријата И секој негов збор.
+
+    Зборот се бара во називот онака како што е напишан во ценовникот - тоа
+    е и „инстант" (вид) и „нескафе" (бренд) и „200" (грамажа). Еден
+    механизам за трите нивоа.
+    """
+    conditions = []
+    if pick.category:
+        # Избрана група ја носи целата своја содржина, избрана под-категорија
+        # само себе - истото правило како кај `group_slug`.
+        conditions.append(
+            or_(Category.slug == pick.category, Group.slug == pick.category)
+        )
+    conditions.extend(
+        Product.raw_name.ilike(like_pattern(term), escape="\\")
+        for term in pick.terms
+    )
+    return and_(*conditions)
+
+
 def _join_and_filter(query: Select, filters: DiscountFilter) -> Select:
     """Ги додава join-овите и условите на било кој упит врз price_row.
 
@@ -166,15 +188,9 @@ def _join_and_filter(query: Select, filters: DiscountFilter) -> Select:
         .where(PriceRow.run_date == filters.run_date, PriceRow.is_discount.is_(True))
     )
 
-    if filters.selection:
-        # Избрана група ја носи целата своја содржина, избрана
-        # под-категорија само себе - истото правило како кај `group_slug`.
-        query = query.where(
-            or_(
-                Category.slug.in_(filters.selection),
-                Group.slug.in_(filters.selection),
-            )
-        )
+    if filters.picks:
+        # Меѓу изборите е ИЛИ: листата е „ова, или ова, или ова".
+        query = query.where(or_(*(_pick_clause(pick) for pick in filters.picks)))
     if filters.city_slug:
         query = query.where(City.slug == filters.city_slug)
     if filters.store_ids:

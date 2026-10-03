@@ -12,7 +12,8 @@ URL-то има предност. Колачето е само памтење: �
 (`izbor=` празно) е суштинска - без неа „види ги сите" не може да се
 направи, зашто колачето веднаш би го вратило стариот избор.
 
-Нема најава: колачето носи само слугови од каталогот, ниту едно лично
+Нема најава: колачето носи само тоа што корисникот одбрал да следи -
+категории од каталогот и зборови што сам ги напишал. Ниту едно лично
 податоче, и нема потреба од согласност за следење.
 """
 
@@ -20,32 +21,33 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from urllib.parse import quote, unquote
 
-from app.catalog.groups import (
-    GROUPS,
-    PARENT_OF,
-    SUBCATEGORIES,
-    category_names,
-    category_slugs,
-)
+from app.catalog.groups import GROUPS, SUBCATEGORIES, category_slugs
+from app.catalog.picks import Pick, parse_pick
 
 COOKIE_NAME = "izbor"
 COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # една година
 
-# Разделникот во колачето е ТОЧКА, не запирка: запирката е резервирана во
-# заглавието `Set-Cookie`, па Starlette го наводничи и го бега целото
-# („masla,kafe"). Прелистувачот го враќа така наводничено, изборот не се
-# препознава и памтењето тивко откажува. Точката ја нема ниту еден слуг.
-SEPARATOR = "."
-_SPLIT = re.compile(r"[.,]")
+# Разделникот во колачето е ЗНАК НА ВИКАЊЕ. Запирката е резервирана во
+# заглавието `Set-Cookie`: Starlette го наводничува и го бега целото
+# („masla,kafe"), прелистувачот го враќа така, и памтењето тивко
+# откажува. Точката изгледаше како решение, но `quote` никогаш не ја бега,
+# па бренд како „dr.oetker" би го скршил записот на два. Знакот на викање го
+# бега, значи никогаш не се појавува внатре во еден избор.
+SEPARATOR = "!"
+_SPLIT = re.compile(r"!")
 
-# Горна граница: URL-то и колачето не смеат да растат без крај. 66 е сè што
-# постои (12 групи + 54 под-категории), па ова никого не стеснува - служи
-# против рачно натрупан URL.
-MAX_SELECTED = 66
+# Горна граница на бројот избори. Повеќе од ова не стеснува ништо - само го
+# натрупува URL-то и колачето.
+MAX_SELECTED = 30
+
+# Колачето има тврда граница околу 4 KB во прелистувачите, а кирилицата по
+# процентно кодирање зафаќа шест бајти по буква. Подолгото се отсекува, за
+# да превеликиот избор изгуби дел наместо целото колаче да биде одбиено.
+MAX_COOKIE_BYTES = 3500
 
 _KNOWN: frozenset[str] = frozenset(category_slugs())
-_NAMES: dict[str, str] = category_names()
 
 # Редоследот е оној од каталогот, не оној од URL-то: ист избор секогаш дава
 # ист запис, па колачето и линкот не се менуваат без причина. Групата оди
@@ -60,26 +62,37 @@ _ORDER.update(
 )
 
 
-def normalise(values: Iterable[str]) -> list[str]:
-    """Чист, подреден избор без излишни членови.
+def normalise(values: Iterable[str]) -> list[Pick]:
+    """Чиста, подредена листа без излишни членови.
 
     Три работи:
 
-    - непознатите слугови паѓаат (URL-то може да дојде рачно напишано);
-    - под-категорија чиј родител е избран се вади - „Пијалоци, Кафе" е
-      истото што и „Пијалоци", а краткиот запис е и појасен на екран;
-    - редоследот е од каталогот, не од барањето.
+    - непрепознатливото паѓа (URL-то може да дојде рачно напишано);
+    - избор што друг веќе го покрива се вади - „Пијалоци" и „Кафе · нескафе"
+      заедно значат само „Пијалоци", а краткиот запис е и појасен на екран;
+    - редоследот е од каталогот, не од барањето, па ист избор секогаш дава
+      ист запис и колачето не се менува без причина.
     """
-    chosen = {value.strip().lower() for value in values}
-    chosen &= _KNOWN
+    picks: list[Pick] = []
+    for value in values:
+        pick = parse_pick(value, _KNOWN)
+        if pick is not None and pick not in picks:
+            picks.append(pick)
 
-    chosen -= {slug for slug in chosen if PARENT_OF.get(slug) in chosen}
+    picks = [
+        pick for pick in picks if not any(other.covers(pick) for other in picks)
+    ]
+    picks.sort(key=_rank)
+    return picks[:MAX_SELECTED]
 
-    ordered = sorted(chosen, key=lambda slug: _ORDER.get(slug, (999, 999)))
-    return ordered[:MAX_SELECTED]
+
+def _rank(pick: Pick) -> tuple[int, int, int, str]:
+    """Редослед: по каталогот, а во иста категорија прво поширокото."""
+    group, inside = _ORDER.get(pick.category or "", (999, 999))
+    return (group, inside, len(pick.terms), pick.key)
 
 
-def from_query(values: list[str] | None) -> list[str] | None:
+def from_query(values: list[str] | None) -> list[Pick] | None:
     """Изборот од URL-то. `None` значи дека барањето не се изјаснило.
 
     `?izbor=` (празна вредност) НЕ е исто со отсутен `izbor`: првото значи
@@ -90,24 +103,34 @@ def from_query(values: list[str] | None) -> list[str] | None:
     return normalise(values)
 
 
-def from_cookie(raw: str | None) -> list[str]:
-    """Изборот од колачето. Расипано колаче е празен избор, не грешка.
-
-    Се прима и запирка: така изгледаа колачињата пред да се види дека
-    запирката се бега.
-    """
+def from_cookie(raw: str | None) -> list[Pick]:
+    """Изборот од колачето. Расипано колаче е празен избор, не грешка."""
     if not raw:
         return []
-    return normalise(_SPLIT.split(raw.strip('"')))
+    return normalise(unquote(part) for part in _SPLIT.split(raw.strip('"')))
 
 
-def to_cookie(slugs: Iterable[str]) -> str:
-    return SEPARATOR.join(slugs)
+def to_cookie(picks: Iterable[Pick]) -> str:
+    """Записот за колачето.
+
+    Секој избор се кодира одделно, зашто брендовите се на кирилица а
+    колачето прима само ASCII. Долгиот избор се отсекува на граница на цел
+    избор - подобро отколку прелистувачот да го одбие целото колаче.
+    """
+    written: list[str] = []
+    length = 0
+    for pick in picks:
+        piece = quote(pick.key, safe="")
+        length += len(piece) + 1
+        if length > MAX_COOKIE_BYTES:
+            break
+        written.append(piece)
+    return SEPARATOR.join(written)
 
 
 def resolve(
     query_values: list[str] | None, cookie_raw: str | None
-) -> tuple[list[str], bool]:
+) -> tuple[list[Pick], bool]:
     """(избор, дали барањето го одреди).
 
     Второто кажува дали колачето треба да се препише.
@@ -118,14 +141,15 @@ def resolve(
     return from_cookie(cookie_raw), False
 
 
-def labels(slugs: Iterable[str]) -> list[str]:
+def labels(picks: Iterable[Pick]) -> list[str]:
     """Имињата за приказ, за да празната страница каже што било проверено."""
-    return [_NAMES[slug] for slug in slugs if slug in _NAMES]
+    return [pick.label for pick in picks]
 
 
 __all__ = [
     "COOKIE_MAX_AGE",
     "COOKIE_NAME",
+    "MAX_COOKIE_BYTES",
     "MAX_SELECTED",
     "SEPARATOR",
     "from_cookie",

@@ -9,6 +9,7 @@ import pytest
 
 from app.catalog import default_grouper
 from app.catalog.groups import GROUPS, SUBCATEGORIES
+from app.catalog.picks import Pick
 from app.readers.base import RawPriceRow, ReaderResult, StoreRef
 from app.services import ingest
 from app.services.catalog import catalog_tree
@@ -384,7 +385,7 @@ async def test_single_store_shows_its_name(db_session) -> None:
 # ==========================================================================
 async def test_selection_narrows_to_what_is_followed(seeded) -> None:
     rows = await list_discounts(
-        seeded, DiscountFilter(run_date=RUN_DATE, selection=["kafe"])
+        seeded, DiscountFilter(run_date=RUN_DATE, picks=[Pick(category="kafe")])
     )
     assert {row.product_name for row in rows} == {
         "НЕСКАФЕ КЛАСИК 100ГР",
@@ -395,7 +396,7 @@ async def test_selection_narrows_to_what_is_followed(seeded) -> None:
 async def test_selecting_a_group_takes_everything_in_it(seeded) -> None:
     """„Храна" го носи и маслото и грицките, без да се набројуваат."""
     rows = await list_discounts(
-        seeded, DiscountFilter(run_date=RUN_DATE, selection=["hrana"])
+        seeded, DiscountFilter(run_date=RUN_DATE, picks=[Pick(category="hrana")])
     )
     names = {row.product_name for row in rows}
     assert "МАСЛО МАСЛИНОВО 0.75Л" in names
@@ -405,7 +406,7 @@ async def test_selecting_a_group_takes_everything_in_it(seeded) -> None:
 
 async def test_several_choices_add_up(seeded) -> None:
     rows = await list_discounts(
-        seeded, DiscountFilter(run_date=RUN_DATE, selection=["kafe", "masla"])
+        seeded, DiscountFilter(run_date=RUN_DATE, picks=[Pick(category="kafe"), Pick(category="masla")])
     )
     assert len(rows) == 3
 
@@ -413,7 +414,7 @@ async def test_several_choices_add_up(seeded) -> None:
 async def test_empty_selection_means_everything(seeded) -> None:
     everything = await count_discounts(seeded, DiscountFilter(run_date=RUN_DATE))
     with_empty = await count_discounts(
-        seeded, DiscountFilter(run_date=RUN_DATE, selection=[])
+        seeded, DiscountFilter(run_date=RUN_DATE, picks=[])
     )
     assert everything == with_empty
 
@@ -422,7 +423,7 @@ async def test_selection_with_no_discounts_counts_zero(seeded) -> None:
     """Ова е случајот за кој постои празната страница."""
     assert (
         await count_discounts(
-            seeded, DiscountFilter(run_date=RUN_DATE, selection=["cigari"])
+            seeded, DiscountFilter(run_date=RUN_DATE, picks=[Pick(category="cigari")])
         )
         == 0
     )
@@ -431,7 +432,7 @@ async def test_selection_with_no_discounts_counts_zero(seeded) -> None:
 async def test_selection_and_city_both_apply(seeded) -> None:
     rows = await list_discounts(
         seeded,
-        DiscountFilter(run_date=RUN_DATE, selection=["kafe"], city_slug="tetovo"),
+        DiscountFilter(run_date=RUN_DATE, picks=[Pick(category="kafe")], city_slug="tetovo"),
     )
     assert [row.product_name for row in rows] == ["НЕСКАФЕ ГОЛД 200ГР"]
 
@@ -441,9 +442,61 @@ async def test_group_counts_follow_the_selection(seeded) -> None:
     производ воопшто не се појавува.
     """
     counts = await counts_by_group(
-        seeded, DiscountFilter(run_date=RUN_DATE, selection=["kafe"])
+        seeded, DiscountFilter(run_date=RUN_DATE, picks=[Pick(category="kafe")])
     )
     assert [slug for slug, _, _ in counts] == ["pijaloci"]
+
+
+async def test_a_brand_narrows_inside_the_category(seeded) -> None:
+    """Тоа што корисникот го бараше: само Нескафе, не сето кафе."""
+    rows = await list_discounts(
+        seeded,
+        DiscountFilter(run_date=RUN_DATE, picks=[Pick("kafe", ("класик",))]),
+    )
+    assert [row.product_name for row in rows] == ["НЕСКАФЕ КЛАСИК 100ГР"]
+
+
+async def test_two_brands_are_both_shown(seeded) -> None:
+    rows = await list_discounts(
+        seeded,
+        DiscountFilter(
+            run_date=RUN_DATE,
+            picks=[Pick("kafe", ("класик",)), Pick("kafe", ("голд",))],
+        ),
+    )
+    assert len(rows) == 2
+
+
+async def test_terms_inside_one_choice_must_all_match(seeded) -> None:
+    """„кафе класик голд" не постои - двата збора мора да се во ист назив."""
+    rows = await list_discounts(
+        seeded,
+        DiscountFilter(run_date=RUN_DATE, picks=[Pick("kafe", ("класик", "голд"))]),
+    )
+    assert rows == []
+
+
+async def test_a_brand_without_a_category_searches_everywhere(seeded) -> None:
+    rows = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, picks=[Pick(terms=("маслиново",))])
+    )
+    assert [row.product_name for row in rows] == ["МАСЛО МАСЛИНОВО 0.75Л"]
+
+
+async def test_a_term_also_matches_a_grammage(seeded) -> None:
+    """Четвртото ниво е истиот механизам: бројот е дел од називот."""
+    rows = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, picks=[Pick("kafe", ("200гр",))])
+    )
+    assert [row.product_name for row in rows] == ["НЕСКАФЕ ГОЛД 200ГР"]
+
+
+async def test_like_characters_in_a_term_are_not_wildcards(seeded) -> None:
+    """Напишано „%" смее да значи само „%", инаку би фатило сè."""
+    rows = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, picks=[Pick("kafe", ("%",))])
+    )
+    assert rows == []
 
 
 # ==========================================================================
@@ -491,7 +544,7 @@ async def test_empty_groups_are_not_offered(seeded) -> None:
 # ==========================================================================
 async def test_savings_is_the_difference_between_the_two_prices(seeded) -> None:
     rows = await list_discounts(
-        seeded, DiscountFilter(run_date=RUN_DATE, selection=["masla"])
+        seeded, DiscountFilter(run_date=RUN_DATE, picks=[Pick(category="masla")])
     )
     assert [row.savings for row in rows] == [Decimal("250")]
 

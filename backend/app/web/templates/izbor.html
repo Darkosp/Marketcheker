@@ -1,165 +1,159 @@
 {% extends "base.html" %}
 
-{# Избор на производи, чекор по чекор.
+{# Изборот на производи - чекор по чекор.
 
-   Секое ниво е избирливо само по себе: може да се земе цела „Пијалоци и
-   напитоци", или да се отвори и да се земе само „Кафе" во неа. Најчестиот
-   случај (цела група) е едно тапкање; поточниот избор е зад „поточно".
+   Прво групите, потоа под-категориите, потоа зборовите од вистинските
+   називи (вид, бренд, грамажа). Секое ниво може да биде последно: може да
+   се земе цела „Пијалоци и напитоци", или да се слезе до „Нескафе".
 
-   Формуларот оди со GET на „/" - изборот влегува во URL-то, а страницата
-   со попусти го запишува во колачето. Затоа тука нема ништо што бара
-   JavaScript: без него сè уште се избира и се праќа. #}
+   Сè оди со обични врски, не со формулар: така слегувањето ниво подолу не
+   го губи она што е веќе избрано, секоја состојба има свое URL, и нема
+   ништо што бара JavaScript. #}
 
 {% block body %}
-<form class="layout layout-single" method="get" action="/">
+<div class="layout layout-single">
   <main class="content pick">
 
     <section class="page-head">
       <h1>Што следиш</h1>
       <p class="subtitle">
-        Избери цела група, или отвори ја и избери поточно. Може и повеќе
-        работи заедно. Без избор се прикажуваат сите денешни попусти.
+        Избери што сакаш да ти се прикажува. Може цела група, може еден
+        бренд. Изборот останува ист додека сам не го смениш.
       </p>
     </section>
 
-    {# Празната вредност оди СЕКОГАШ: по неа серверот знае дека барањето се
-       изјаснило за изборот. Без неа, праќање без ниту едно штиклирано поле
-       би го вратило стариот избор од колачето. #}
-    <input type="hidden" name="izbor" value="">
-
-    <div class="pick-top">
-      <label class="field">
-        <span class="field-label">Град</span>
-        <select name="grad">
-          <option value="">сите градови</option>
-          {% for slug, name, store_count in cities %}
-            <option value="{{ slug }}" {% if selected.grad == slug %}selected{% endif %}>
-              {{ name }} ({{ store_count }})
-            </option>
+    {# ===================== твојата листа ===================== #}
+    <section class="mine">
+      {% if chosen %}
+        <h2 class="mine-title">Следиш {{ chosen|length }}</h2>
+        <ul class="mine-list">
+          {% for pick in chosen %}
+            <li class="mine-item">
+              <span class="mine-name">{{ pick.label }}</span>
+              <a class="mine-drop" href="{{ link(drop=pick.key, open_slug=node.slug if node else None) }}"
+                 aria-label="Отстрани {{ pick.label }}">✕</a>
+            </li>
           {% endfor %}
-        </select>
-      </label>
+        </ul>
+      {% else %}
+        <p class="mine-empty">
+          Листата е празна — засега ќе ти се прикажуваат <strong>сите</strong>
+          денешни попусти. Избери подолу за да ја стесниш.
+        </p>
+      {% endif %}
+    </section>
 
-      <label class="field">
-        <span class="field-label">Најди категорија</span>
-        <input class="pick-find" type="search" id="najdi" autocomplete="off"
-               placeholder="кафе, масло, пелени…">
-      </label>
-    </div>
+    {# ===================== каде сме ===================== #}
+    {% if node %}
+      <nav class="trail" aria-label="Каде си">
+        <a href="{{ link() }}">сите групи</a>
+        {% if parent %}
+          <span class="trail-sep">›</span>
+          <a href="{{ link(open_slug=parent.slug) }}">{{ parent.name }}</a>
+        {% endif %}
+        <span class="trail-sep">›</span>
+        <span class="trail-now">{{ node.name }}</span>
+      </nav>
 
-    <div class="pick-tree" id="drvo">
-      {% for group in tree %}
-        {% set kids_on = group.children | selectattr("slug", "in", chosen) | list %}
-        <div class="pick-group" data-name="{{ group.name|lower }}">
-          <label class="pick-row">
-            <input type="checkbox" name="izbor" value="{{ group.slug }}"
-                   data-group="{{ group.slug }}"
-                   {% if group.slug in chosen %}checked{% endif %}>
-            <span class="pick-name">{{ group.name }}</span>
-            <span class="pick-count">{{ group.product_count|broj }}</span>
-          </label>
+      {# Секое ниво може да биде последно - и ова. #}
+      <a class="take-all" href="{{ link(add=node.slug, open_slug=node.slug) }}">
+        <span class="take-all-text">
+          Следи <strong>{{ node.name|lower }}</strong> во целост
+        </span>
+        <span class="take-all-count">{{ node.product_count|broj }} производи</span>
+      </a>
+    {% endif %}
 
-          {% if group.children %}
-            <details class="pick-deeper" {% if kids_on %}open{% endif %}>
-              <summary>поточно ({{ group.children|length }})</summary>
-              <div class="pick-subs">
-                {% for sub in group.children %}
-                  <label class="pick-row pick-row-sub" data-name="{{ sub.name|lower }}">
-                    <input type="checkbox" name="izbor" value="{{ sub.slug }}"
-                           data-parent="{{ group.slug }}"
-                           {% if sub.slug in chosen %}checked{% endif %}>
-                    <span class="pick-name">{{ sub.name }}</span>
-                    <span class="pick-count">{{ sub.product_count|broj }}</span>
-                  </label>
-                {% endfor %}
-              </div>
-            </details>
-          {% endif %}
+    {# ===================== следното ниво ===================== #}
+    {% if options %}
+      <h2 class="step-title">
+        {% if node %}Или избери поточно{% else %}Од што почнуваме{% endif %}
+      </h2>
+      <ul class="steps">
+        {% for option in options %}
+          <li class="step">
+            {# Отворањето и земањето се две различни работи, па се две
+               различни копчиња - инаку не се знае што прави кликот. #}
+            <a class="step-open" href="{{ link(open_slug=option.slug) }}">
+              <span class="step-name">{{ option.name }}</span>
+              <span class="step-count">{{ option.product_count|broj }}</span>
+              <span class="step-go" aria-hidden="true">›</span>
+            </a>
+            <a class="step-take {% if option.slug in chosen_keys %}step-on{% endif %}"
+               href="{{ link(add=option.slug, open_slug=node.slug if node else None) }}">
+              {% if option.slug in chosen_keys %}следиш{% else %}следи{% endif %}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {# ===================== вид, бренд, грамажа ===================== #}
+    {% if node and not options %}
+      <h2 class="step-title">Или само одреден производ</h2>
+
+      <form class="type" method="get" action="/izbor">
+        {% for pick in chosen %}
+          <input type="hidden" name="izbor" value="{{ pick.key }}">
+        {% endfor %}
+        <input type="hidden" name="izbor" value="">
+        <input type="hidden" name="otvori" value="{{ node.slug }}">
+        <label class="field">
+          <span class="field-label">Напиши бренд или вид</span>
+          <input class="pick-find" type="search" name="dodaj" autocomplete="off"
+                 placeholder="нескафе, инстант, 200г…">
+        </label>
+        <button class="btn" type="submit">Додади</button>
+      </form>
+
+      {% if terms %}
+        <p class="type-note">
+          Зборовите подолу се од <strong>вистинските називи</strong> во
+          ценовниците — колку производа носи секој.
+        </p>
+        <div class="terms">
+          {% for term in terms if not term.is_package %}
+            {% set key = node.slug ~ "~" ~ term.text|lower %}
+            <a class="term {% if key in chosen_keys %}term-on{% endif %}"
+               href="{{ link(add=key, open_slug=node.slug) }}">
+              {{ term.text }}<span class="term-count">{{ term.products }}</span>
+            </a>
+          {% endfor %}
         </div>
-      {% endfor %}
-    </div>
 
-    <p class="pick-none" id="pick-none" hidden>
-      Нема категорија со тоа име. Избриши го пишаното за да се вратат сите.
-    </p>
+        {% set packages = terms | selectattr("is_package") | list %}
+        {% if packages %}
+          <p class="type-note">Грамажа</p>
+          <div class="terms">
+            {% for term in packages %}
+              {% set key = node.slug ~ "~" ~ term.text|lower %}
+              <a class="term term-sm {% if key in chosen_keys %}term-on{% endif %}"
+                 href="{{ link(add=key, open_slug=node.slug) }}">
+                {{ term.text }}<span class="term-count">{{ term.products }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endif %}
+    {% endif %}
 
+    {# ===================== долната лента ===================== #}
     <div class="pick-bar">
-      <span class="pick-chosen" id="pick-chosen" aria-live="polite">
-        {% if chosen_count %}
-          избрано: {{ chosen_count }}
+      <span class="pick-chosen">
+        {% if chosen %}
+          во листата: {{ chosen|length }}
         {% else %}
-          ништо избрано — ќе се прикажат сите попусти
+          листата е празна — ќе се прикажат сите попусти
         {% endif %}
       </span>
       <span class="pick-actions">
-        {# „Сите производи" е обичен линк со празен izbor: серверот го чита
-           како изјаснет празен избор и го брише колачето. #}
-        <a class="btn btn-ghost" href="/?izbor=">сите производи</a>
-        <button class="btn" type="submit">Прикажи попусти</button>
+        {% if chosen %}
+          <a class="btn btn-ghost" href="/?izbor=">испразни</a>
+        {% endif %}
+        <a class="btn" href="{{ link(show=True) }}">Прикажи попусти</a>
       </span>
     </div>
 
   </main>
-</form>
-
-<script>
-  // Трите удобности подолу се необврзни: без JavaScript изборот и
-  // праќањето работат исто, само без бројачот и без филтрирањето.
-  const tree = document.getElementById("drvo");
-  const counter = document.getElementById("pick-chosen");
-  const find = document.getElementById("najdi");
-  const nothing = document.getElementById("pick-none");
-
-  // 1. Избрана група ја носи целата своја содржина, па под-категориите во
-  //    неа се излишни. Серверот и така ги вади; тука тоа се ВИДИ.
-  const syncGroup = (box) => {
-    if (!box || !box.dataset.group) return;
-    tree.querySelectorAll(`[data-parent="${box.dataset.group}"]`).forEach((sub) => {
-      sub.disabled = box.checked;
-      sub.closest(".pick-row").classList.toggle("pick-row-off", box.checked);
-    });
-  };
-
-  // 2. Бројачот на избрани.
-  const syncCount = () => {
-    const chosen = tree.querySelectorAll("input:checked:not(:disabled)");
-    counter.textContent = chosen.length
-      ? `избрано: ${chosen.length}`
-      : "ништо избрано — ќе се прикажат сите попусти";
-  };
-
-  tree.querySelectorAll("[data-group]").forEach(syncGroup);
-  tree.addEventListener("change", (event) => {
-    syncGroup(event.target);
-    syncCount();
-  });
-
-  // 3. Филтрирање на дрвото по име. Со 66 категории на телефон, лизгањето
-  //    до „Пелени и марамици" е подолго од пишувањето „пелен".
-  find.addEventListener("input", () => {
-    const needle = find.value.trim().toLowerCase();
-    let shown = 0;
-
-    tree.querySelectorAll(".pick-group").forEach((group) => {
-      const subs = [...group.querySelectorAll(".pick-row-sub")];
-      const groupHit = !needle || group.dataset.name.includes(needle);
-      const subHits = subs.filter((sub) => needle && sub.dataset.name.includes(needle));
-
-      const visible = groupHit || subHits.length > 0;
-      group.hidden = !visible;
-      if (visible) shown += 1;
-
-      subs.forEach((sub) => {
-        sub.hidden = Boolean(needle) && !groupHit && !subHits.includes(sub);
-      });
-
-      // Отворено само кога погодокот е внатре - инаку сите 12 групи се
-      // расклопуваат штом ќе се избрише пишаното.
-      const deeper = group.querySelector(".pick-deeper");
-      if (deeper && needle) deeper.open = subHits.length > 0;
-    });
-
-    nothing.hidden = shown > 0;
-  });
-</script>
+</div>
 {% endblock %}
