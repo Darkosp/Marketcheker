@@ -26,3 +26,18 @@
     <a class="picked-edit" href="/izbor{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">избери што следиш</a>
   {% endif %}
 </div>
+
+{% if user and not chosen %}
+  {# Најавен човек со празна листа ја гледа целата понуда - токму тоа што
+     сакаше да го избегне кога направи сметка. Ситна врска не е доволна:
+     првиот корисник ја направи сметката, го постави градот, и воопшто не
+     го најде местото за избор. #}
+  <a class="invite" href="/izbor{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">
+    <span class="invite-text">
+      <strong>Направи си листа, {{ user.username }}.</strong>
+      Избери ги производите што ги купуваш — потоа тука ќе ги гледаш само
+      нивните попусти, наместо сите {{ pagination.total|broj }}.
+    </span>
+    <span class="invite-go">Избери производи →</span>
+  </a>
+{% endif %}

@@ -45,11 +45,34 @@ async def test_the_header_offers_login_when_nobody_is_in(
 async def test_registration_logs_the_person_in(db_client: AsyncClient) -> None:
     response = await _register(db_client)
     assert response.status_code == 303
-    assert response.headers["location"] == "/"
 
     html = (await db_client.get("/")).text
     assert IME in html
     assert "одјави се" in html
+
+
+async def test_registration_goes_straight_to_the_picker(
+    db_client: AsyncClient,
+) -> None:
+    """Нова сметка нема ништо во листата, па списокот со сите попусти не е
+    следниот чекор.
+
+    Регресија: првата верзија водеше на „/" и првиот вистински корисник ја
+    направи сметката, го постави градот, и воопшто не го најде местото за
+    избор на производи.
+    """
+    response = await _register(db_client)
+    assert response.headers["location"] == "/izbor"
+
+
+async def test_login_goes_to_the_discounts(db_client: AsyncClient) -> None:
+    """Постоечка сметка веќе има листа - таа оди право на попустите."""
+    await _register(db_client)
+    await db_client.post("/odjava", follow_redirects=False)
+    response = await db_client.post(
+        "/najava", data={"ime": IME, "lozinka": LOZINKA}, follow_redirects=False
+    )
+    assert response.headers["location"] == "/"
 
 
 async def test_mismatched_passwords_are_caught(db_client: AsyncClient) -> None:
@@ -197,3 +220,26 @@ async def test_two_people_on_one_browser_keep_separate_lists(
     )
     html = (await db_client.get("/")).text
     assert "Пелени" not in html
+
+
+async def test_an_empty_list_is_invited_to_be_filled(db_client: AsyncClient) -> None:
+    """Ситна врска не беше доволна - првиот корисник не ја забележа."""
+    await _register(db_client)
+    html = (await db_client.get("/")).text
+    assert "Направи си листа" in html
+    assert IME in html
+
+
+async def test_the_invitation_goes_away_once_there_is_a_list(
+    db_client: AsyncClient,
+) -> None:
+    await _register(db_client)
+    html = (await db_client.get("/?izbor=kafe")).text
+    assert "Направи си листа" not in html
+
+
+async def test_a_visitor_without_an_account_is_not_invited(
+    db_client: AsyncClient,
+) -> None:
+    """Понудата има смисла само кога има каде да се зачува."""
+    assert "Направи си листа" not in (await db_client.get("/")).text

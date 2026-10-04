@@ -25,6 +25,10 @@ log = get_logger(__name__)
 
 # Каде се оди по успешна најава.
 HOME = "/"
+# Каде се оди по регистрација. Нова сметка нема ништо во листата, па
+# списокот со сите попусти не е следниот чекор - изборот е. Првата верзија
+# водеше на „/" и човекот не го наоѓаше местото за избор воопшто.
+AFTER_REGISTER = "/izbor"
 
 
 def _form(request: Request, template: str, **context) -> HTMLResponse:
@@ -101,7 +105,7 @@ async def register(
     await session.commit()
     log.info("Нова сметка: %s", user.username)
 
-    response = RedirectResponse(HOME, status_code=303)
+    response = RedirectResponse(AFTER_REGISTER, status_code=303)
     _forget_cookies(response)
     return response
 
