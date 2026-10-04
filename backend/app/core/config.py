@@ -7,8 +7,23 @@ from typing import Literal
 from urllib.parse import quote_plus
 from zoneinfo import ZoneInfo
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Вредностите од .env.example и сè што личи на нив. На сервер со овие
+# апликацијата НЕ смее да стартува: тајна што стои во јавно репо не е тајна.
+PLACEHOLDER_SECRETS = frozenset(
+    {
+        "смени-ме",
+        "смени-ме-со-случаен-стринг",
+        "change-me",
+        "secret",
+        "password",
+        "postgres",
+        "test",
+        "test-secret-key-dolga-najmalku-16",
+    }
+)
 
 
 class Settings(BaseSettings):
@@ -48,7 +63,18 @@ class Settings(BaseSettings):
     @field_validator("scheduler_timezone")
     @classmethod
     def _validate_timezone(cls, value: str) -> str:
-        ZoneInfo(value)  # фрла грешка ако зоната не постои
+        """Непостоечка зона мора да падне како грешка во конфигурацијата.
+
+        `ZoneInfo` фрла `KeyError`, кој pydantic НЕ го претвора во читлива
+        порака - се добиваше гол `ZoneInfoNotFoundError` наместо да се каже
+        која поставка е погрешна.
+        """
+        try:
+            ZoneInfo(value)
+        except Exception as exc:
+            raise ValueError(
+                f"SCHEDULER_TIMEZONE={value!r} не е позната временска зона"
+            ) from exc
         return value
 
     @field_validator("scraper_user_agent")
@@ -65,6 +91,34 @@ class Settings(BaseSettings):
                 "(HTTP заглавијата не поддржуваат кирилица)"
             )
         return value
+
+    @model_validator(mode="after")
+    def _refuse_placeholder_secrets(self) -> Settings:
+        """На сервер, примерните тајни ја запираат апликацијата.
+
+        Полесно е да се заборави `SECRET_KEY` отколку да се забележи - а
+        последицата е сесија што секој може да ја потпише. Подобро да не
+        стартува отколку да работи отворена.
+        """
+        if self.app_env != "production":
+            return self
+
+        weak = [
+            name
+            for name, value in (
+                ("SECRET_KEY", self.secret_key),
+                ("POSTGRES_PASSWORD", self.postgres_password),
+            )
+            if value.strip().lower() in PLACEHOLDER_SECRETS
+        ]
+        if weak:
+            raise ValueError(
+                "На production не смее да се работи со примерни тајни: "
+                + ", ".join(weak)
+                + ". Генерирај со: "
+                'python -c "import secrets; print(secrets.token_urlsafe(48))"'
+            )
+        return self
 
     @property
     def tz(self) -> ZoneInfo:

@@ -1,0 +1,27 @@
+# HTTPS без рачна работа: Caddy сам го вади сертификатот од Let's Encrypt
+# и сам го обновува. Домејнот и е-поштата доаѓаат од .env.
+{
+	email {$ACME_EMAIL}
+}
+
+{$APP_DOMAIN} {
+	encode zstd gzip
+
+	# Статичните делови се менуваат само при ново пуштање, а носат ознака
+	# за верзија во URL-то (`app.css?v=...`), па смеат да стојат долго.
+	@static path /static/*
+	header @static Cache-Control "public, max-age=604800"
+
+	# Цените се менуваат секој ден - страниците НЕ смеат да се кешираат.
+	@pages not path /static/*
+	header @pages Cache-Control "no-cache"
+
+	header {
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	reverse_proxy api:8000
+}
