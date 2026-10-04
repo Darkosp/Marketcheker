@@ -225,6 +225,48 @@ def test_the_cookie_is_cut_before_the_browser_refuses_it() -> None:
 
 
 # ==========================================================================
+# Градот се памети како и производите
+# ==========================================================================
+GRADOVI = ("skopje", "bitola", "tetovo")
+
+
+def test_a_city_from_the_url_decides() -> None:
+    assert selection.resolve_city("bitola", None, GRADOVI) == ("bitola", True)
+
+
+def test_an_empty_city_in_the_url_means_all_cities() -> None:
+    """Паѓачкото мени секогаш праќа вредност, па празното е изјаснето."""
+    assert selection.resolve_city("", "skopje", GRADOVI) == ("", True)
+
+
+def test_without_a_city_in_the_url_the_remembered_one_applies() -> None:
+    assert selection.resolve_city(None, "skopje", GRADOVI) == ("skopje", False)
+
+
+def test_a_remembered_city_without_discounts_today_is_dropped() -> None:
+    """Списокот нуди само градови со попусти ДЕНЕС.
+
+    Ако запаметениот го нема, менито би покажувало „сите градови" додека
+    филтерот тивко би филтрирал по него - празна страница без објаснување.
+    """
+    assert selection.resolve_city(None, "kocani", GRADOVI) == ("", False)
+
+
+def test_a_city_written_by_hand_is_honoured_even_if_it_gives_nothing() -> None:
+    """Во URL-то е изречно барање, за разлика од запаметеното."""
+    assert selection.resolve_city("kocani", None, GRADOVI) == ("kocani", True)
+
+
+def test_rubbish_in_the_city_cookie_is_ignored() -> None:
+    for junk in ("../etc", "СКОПЈЕ", "a" * 80, "sko pje"):
+        assert selection.resolve_city(None, junk, GRADOVI) == ("", False)
+
+
+def test_rubbish_in_the_city_url_does_not_become_a_filter() -> None:
+    assert selection.resolve_city("../etc", None, GRADOVI) == ("", True)
+
+
+# ==========================================================================
 # Броевите на македонски
 # ==========================================================================
 @pytest.mark.parametrize(

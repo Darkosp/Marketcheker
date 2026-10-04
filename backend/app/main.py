@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     setup_logging(settings.log_level)
     log.info(
-        "Marketchecker %s стартува (околина=%s, зона=%s)",
+        "DARBOX Marketchecker %s стартува (околина=%s, зона=%s)",
         __version__,
         settings.app_env,
         settings.scheduler_timezone,
@@ -33,14 +33,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Табелите ги создава Alembic (`alembic upgrade head`), не апликацијата.
     yield
     await dispose_engine()
-    log.info("Marketchecker запре")
+    log.info("DARBOX Marketchecker запре")
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
-        title="Marketchecker",
+        title="DARBOX Marketchecker",
         description="Дневни попусти од ценовниците на маркетите во Македонија.",
         version=__version__,
         lifespan=lifespan,

@@ -6,20 +6,20 @@
   <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
   <meta name="description" content="Денешните попусти од маркетите во Македонија, на едно место.">
-  <title>{% block title %}{{ title|default("Marketchecker") }}{% endblock %}</title>
+  <title>{% block title %}{{ title|default("DARBOX Marketchecker") }}{% endblock %}</title>
   <link rel="stylesheet" href="/static/app.css?v={{ asset_version() }}">
   <link rel="manifest" href="/static/manifest.webmanifest">
   <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
   <link rel="apple-touch-icon" href="/static/icon.svg">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="Marketchecker">
+  <meta name="apple-mobile-web-app-title" content="DARBOX">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.4/htmx.min.js" defer></script>
 </head>
 <body>
   <header class="topbar">
     <a class="brand" href="/">
       <span class="brand-mark" aria-hidden="true">%</span>
-      Marketchecker
+      <span class="brand-name"><strong>DARBOX</strong> Marketchecker</span>
     </a>
     <nav class="topnav">
       <a href="/izbor">што следиш</a>

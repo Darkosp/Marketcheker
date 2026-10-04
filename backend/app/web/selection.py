@@ -1,4 +1,4 @@
-"""Изборот на корисникот: кои категории ги следи.
+"""Што си одбрал корисникот: кои производи ги следи и во кој град.
 
 Изборот живее на две места:
 
@@ -27,7 +27,12 @@ from app.catalog.groups import GROUPS, SUBCATEGORIES, category_slugs
 from app.catalog.picks import Pick, parse_pick
 
 COOKIE_NAME = "izbor"
+CITY_COOKIE = "grad"
 COOKIE_MAX_AGE = 60 * 60 * 24 * 365  # една година
+
+# Слуг на град: букви, бројки и цртички. Служи само како заштита од ѓубре
+# во колачето - кои градови навистина постојат се знае дури во упитот.
+_CITY = re.compile(r"^[a-z0-9-]{1,64}$")
 
 # Разделникот во колачето е ЗНАК НА ВИКАЊЕ. Запирката е резервирана во
 # заглавието `Set-Cookie`: Starlette го наводничува и го бега целото
@@ -141,12 +146,36 @@ def resolve(
     return from_cookie(cookie_raw), False
 
 
+def resolve_city(
+    requested: str | None, cookie_raw: str | None, known: Iterable[str]
+) -> tuple[str, bool]:
+    """(град, дали барањето го одреди) - истото правило како кај производите.
+
+    Со една разлика: град од URL-то се применува каков што е, а град од
+    колачето само ако денес навистина постои во списокот.
+
+    Зошто разликата: списокот нуди само градови што имаат попусти ДЕНЕС. Ако
+    запаметениот град денес го нема, паѓачкото мени би покажувало „сите
+    градови" додека филтерот тивко би филтрирал по него - страница без
+    резултати и без објаснување. Напишан рачно во URL-то, пак, е изречно
+    барање и се почитува, па дури и да не даде ништо.
+    """
+    if requested is not None:
+        return (requested if _CITY.match(requested) else ""), True
+
+    remembered = cookie_raw or ""
+    if remembered and _CITY.match(remembered) and remembered in set(known):
+        return remembered, False
+    return "", False
+
+
 def labels(picks: Iterable[Pick]) -> list[str]:
     """Имињата за приказ, за да празната страница каже што било проверено."""
     return [pick.label for pick in picks]
 
 
 __all__ = [
+    "CITY_COOKIE",
     "COOKIE_MAX_AGE",
     "COOKIE_NAME",
     "MAX_COOKIE_BYTES",
@@ -157,5 +186,6 @@ __all__ = [
     "labels",
     "normalise",
     "resolve",
+    "resolve_city",
     "to_cookie",
 ]

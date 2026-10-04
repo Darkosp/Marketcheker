@@ -157,23 +157,23 @@ def _store_ids(raw: list[str] | None) -> list[int]:
     return ids
 
 
-def _remember_selection(response: Response, slugs: list[str]) -> None:
-    """Колачето го памети изборот; празен избор го брише.
+def _remember(response: Response, name: str, value: str) -> None:
+    """Колачето го памети избраното; празна вредност го брише.
 
-    httponly: изборот го чита серверот, не JavaScript. Нема лични
-    податоци внатре - само слугови од каталогот.
+    httponly: ова го чита серверот, не JavaScript. Нема лични податоци
+    внатре - само слугови од каталогот и од градовите.
     """
-    if slugs:
+    if value:
         response.set_cookie(
-            selection.COOKIE_NAME,
-            selection.to_cookie(slugs),
+            name,
+            value,
             max_age=selection.COOKIE_MAX_AGE,
             httponly=True,
             samesite="lax",
             path="/",
         )
     else:
-        response.delete_cookie(selection.COOKIE_NAME, path="/")
+        response.delete_cookie(name, path="/")
 
 
 @router.get("/", response_class=HTMLResponse, summary="Денешни попусти")
@@ -202,6 +202,15 @@ async def index(
     stores = _store_ids(market)
     chosen, chosen_in_url = selection.resolve(
         izbor, request.cookies.get(selection.COOKIE_NAME)
+    )
+
+    # Градот се разрешува ПРЕД филтрите, зашто и тој се памети. Списокот
+    # градови и така му треба на приказот, па не чини дополнителен упит.
+    cities = await available_cities(session, run_date)
+    grad, grad_in_url = selection.resolve_city(
+        grad,
+        request.cookies.get(selection.CITY_COOKIE),
+        (slug for slug, _, _ in cities),
     )
 
     def build(group_slug: str | None, *, limit: int, offset: int) -> DiscountFilter:
@@ -239,7 +248,6 @@ async def index(
         else []
     )
 
-    cities = await available_cities(session, run_date)
     city_names = {slug: name for slug, name, _ in cities}
 
     context = {
@@ -289,10 +297,12 @@ async def index(
     template = "partials/results.html" if is_htmx else "index.html"
 
     response = templates.TemplateResponse(request, template, context)
-    # Колачето се пишува само кога барањето се изјаснило за изборот -
-    # инаку секое прелистување би го препишувало со истото.
+    # Колачето се пишува само кога барањето се изјаснило - инаку секое
+    # прелистување би го препишувало со истото.
     if chosen_in_url:
-        _remember_selection(response, chosen)
+        _remember(response, selection.COOKIE_NAME, selection.to_cookie(chosen))
+    if grad_in_url:
+        _remember(response, selection.CITY_COOKIE, grad)
     return response
 
 
@@ -365,6 +375,9 @@ async def selection_page(
     избере.
     """
     chosen, _ = selection.resolve(izbor, request.cookies.get(selection.COOKIE_NAME))
+    # Градот не се менува тука, но мора да патува со изборот - инаку
+    # „Прикажи попусти" би го вратило на „сите градови".
+    grad = grad or request.cookies.get(selection.CITY_COOKIE) or None
 
     # Напишан бренд: се додава и се враќа на чисто URL, за да освежување на
     # страницата не го додаде истото двапати.

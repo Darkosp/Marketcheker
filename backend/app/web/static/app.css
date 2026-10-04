@@ -102,6 +102,16 @@ a { color: var(--accent); text-decoration-thickness: 1px; }
   border-radius: 7px;
 }
 
+/* „DARBOX" ја носи марката, „Marketchecker" кажува што е - затоа се
+   разликуваат по тежина, не по големина. На тесен екран второто се крие:
+   иконата и марката се доволни за да се знае каде си. */
+.brand-name strong { font-weight: 800; letter-spacing: -0.02em; }
+.brand-name { font-weight: 500; }
+
+@media (max-width: 420px) {
+  .brand-name { font-size: 0.95rem; }
+}
+
 .topnav { display: flex; gap: 14px; }
 .topnav a { font-size: 0.85rem; color: var(--muted); text-decoration: none; }
 .topnav a:hover { color: var(--accent); }

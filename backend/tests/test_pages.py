@@ -200,6 +200,31 @@ async def test_an_empty_choice_forgets_the_cookie(client: AsyncClient) -> None:
     assert not client.cookies.get("izbor")
 
 
+async def test_the_city_is_remembered_too(client: AsyncClient) -> None:
+    """Инаку секое отворање се враќа на „сите градови" - пропуст што се
+    гледаше веднаш штом семејството почна да ја отвора од телефони.
+    """
+    response = await client.get("/?grad=skopje")
+    assert response.cookies.get("grad") == "skopje"
+
+    html = (await client.get("/")).text
+    assert 'value="skopje" selected' in html.replace(" >", ">")
+
+
+async def test_choosing_all_cities_forgets_the_city(client: AsyncClient) -> None:
+    await client.get("/?grad=skopje")
+    assert client.cookies.get("grad") == "skopje"
+    await client.get("/?grad=")
+    assert not client.cookies.get("grad")
+
+
+async def test_the_remembered_city_reaches_the_picker(client: AsyncClient) -> None:
+    """„Прикажи попусти" од /izbor мора да го врати во истиот град."""
+    await client.get("/?grad=skopje")
+    html = (await client.get("/izbor")).text
+    assert "grad=skopje" in html
+
+
 async def test_choice_travels_in_hidden_fields(client: AsyncClient) -> None:
     """Инаку страничењето и подредувањето го губат изборот - истата грешка
     што веќе се случи со категоријата.
