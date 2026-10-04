@@ -1,17 +1,23 @@
-"""Корисници и нивни избори (град, продавници, категории)."""
+"""Корисници и нивните избори (град, продавници, производи)."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.catalog import ProductCategory
     from app.models.chain import Store
     from app.models.geo import City
 
@@ -43,8 +49,10 @@ class User(Base, TimestampMixin):
     store_links: Mapped[list[UserStore]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    category_links: Mapped[list[UserCategory]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
+    picks: Mapped[list[UserPick]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        order_by="UserPick.position",
     )
 
     def __repr__(self) -> str:
@@ -67,17 +75,35 @@ class UserStore(Base):
     store: Mapped[Store] = relationship()
 
 
-class UserCategory(Base):
-    """Одбрани општи категории на корисникот."""
+class UserPick(Base, TimestampMixin):
+    """Едно нешто што корисникот следи.
 
-    __tablename__ = "user_category"
+    Се чува ТОЧНО во истиот запис како во URL-то и во колачето:
+    „kafe" за цела категорија, „kafe~нескафе" за бренд во неа, „~нескафе"
+    за бренд насекаде. Еден запис, еден парсер (`app.catalog.picks`), едно
+    правило за чистење - наместо трета претстава што треба да се држи во
+    чекор со другите две.
 
+    Затоа тука нема врска кон `product_category`: слугот е идентитетот низ
+    целата апликација, а категориите се создаваат ОД код. Непознат слуг не
+    е грешка во базата - се игнорира при читање, исто како во URL-то.
+    """
+
+    __tablename__ = "user_pick"
+    __table_args__ = (
+        UniqueConstraint("user_id", "pick_key", name="user_pick_unique"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("app_user.id", ondelete="CASCADE"), primary_key=True
+        ForeignKey("app_user.id", ondelete="CASCADE"), index=True
     )
-    category_id: Mapped[int] = mapped_column(
-        ForeignKey("product_category.id", ondelete="CASCADE"), primary_key=True
-    )
+    pick_key: Mapped[str] = mapped_column(String(200))
+    # Редоследот го одредува каталогот, не корисникот, но се запишува за да
+    # листата изгледа исто при секое читање.
+    position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
-    user: Mapped[User] = relationship(back_populates="category_links")
-    category: Mapped[ProductCategory] = relationship()
+    user: Mapped[User] = relationship(back_populates="picks")
+
+    def __repr__(self) -> str:
+        return f"<UserPick {self.pick_key!r}>"
