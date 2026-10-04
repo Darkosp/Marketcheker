@@ -24,7 +24,16 @@
     <nav class="topnav">
       <a href="/izbor">што следиш</a>
       <a href="/statistika">статистика</a>
-      <a href="/sostojba">состојба</a>
+      {% if user %}
+        <span class="topnav-me">{{ user.username }}</span>
+        {# Одјава со POST: врска што одјавува со клик може да ја активира и
+           туѓа страница, или прелистувачот сам при предвчитување. #}
+        <form class="topnav-out" method="post" action="/odjava">
+          <button type="submit">одјави се</button>
+        </form>
+      {% else %}
+        <a href="/najava">најава</a>
+      {% endif %}
     </nav>
   </header>
 

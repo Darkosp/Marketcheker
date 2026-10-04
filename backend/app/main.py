@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import __version__
-from app.api.routes import health, pages
+from app.api.routes import auth, health, pages
 from app.core.config import get_settings
 from app.core.logging import get_logger, setup_logging
 from app.db.session import dispose_engine
@@ -48,7 +48,7 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
 
-    # Сесијата го држи најавениот корисник (чекор 5).
+    # Сесијата го држи најавениот корисник.
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.secret_key,
@@ -74,6 +74,7 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(health.router)
+    app.include_router(auth.router)
     app.include_router(pages.router)
 
     return app

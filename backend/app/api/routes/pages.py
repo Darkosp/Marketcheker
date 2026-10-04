@@ -18,9 +18,10 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.api.deps import SessionDep
+from app.api.deps import CurrentUser, SessionDep
 from app.catalog.groups import PARENT_OF, category_slugs
 from app.catalog.picks import Pick, clean_term
+from app.services import accounts
 from app.services.catalog import catalog_tree, suggested_terms
 from app.services.discounts import (
     DiscountFilter,
@@ -157,6 +158,13 @@ def _store_ids(raw: list[str] | None) -> list[int]:
     return ids
 
 
+def _cookie_keys(request: Request) -> list[str]:
+    """Записите на изборот од колачето, без чистење - тоа го прави `choose`."""
+    return [pick.key for pick in selection.from_cookie(
+        request.cookies.get(selection.COOKIE_NAME)
+    )]
+
+
 def _remember(response: Response, name: str, value: str) -> None:
     """Колачето го памети избраното; празна вредност го брише.
 
@@ -180,6 +188,7 @@ def _remember(response: Response, name: str, value: str) -> None:
 async def index(
     request: Request,
     session: SessionDep,
+    user: CurrentUser,
     datum: date | None = None,
     grad: str | None = None,
     grupa: str | None = None,
@@ -200,16 +209,21 @@ async def index(
 
     page_size = _clamp_page_size(po_strana)
     stores = _store_ids(market)
-    chosen, chosen_in_url = selection.resolve(
-        izbor, request.cookies.get(selection.COOKIE_NAME)
-    )
+    # Со сметка листата е на човекот; без неа на уредот.
+    if user is not None:
+        remembered = await accounts.load_picks(session, user)
+    else:
+        remembered = _cookie_keys(request)
+    chosen, chosen_in_url = selection.choose(izbor, remembered)
 
     # Градот се разрешува ПРЕД филтрите, зашто и тој се памети. Списокот
     # градови и така му треба на приказот, па не чини дополнителен упит.
     cities = await available_cities(session, run_date)
     grad, grad_in_url = selection.resolve_city(
         grad,
-        request.cookies.get(selection.CITY_COOKIE),
+        await accounts.city_of(session, user)
+        if user is not None
+        else request.cookies.get(selection.CITY_COOKIE),
         (slug for slug, _, _ in cities),
     )
 
@@ -252,6 +266,7 @@ async def index(
 
     context = {
         "title": "Денешни попусти",
+        "user": user,
         "chosen": chosen,
         "chosen_labels": selection.labels(chosen),
         "run_date": run_date,
@@ -297,12 +312,21 @@ async def index(
     template = "partials/results.html" if is_htmx else "index.html"
 
     response = templates.TemplateResponse(request, template, context)
-    # Колачето се пишува само кога барањето се изјаснило - инаку секое
-    # прелистување би го препишувало со истото.
-    if chosen_in_url:
-        _remember(response, selection.COOKIE_NAME, selection.to_cookie(chosen))
-    if grad_in_url:
-        _remember(response, selection.CITY_COOKIE, grad)
+
+    # Се запишува само кога барањето се изјаснило - инаку секое прелистување
+    # би го препишувало со истото.
+    if user is not None:
+        if chosen_in_url:
+            await accounts.save_picks(session, user, chosen)
+        if grad_in_url:
+            await accounts.set_city(session, user, grad)
+        if chosen_in_url or grad_in_url:
+            await session.commit()
+    else:
+        if chosen_in_url:
+            _remember(response, selection.COOKIE_NAME, selection.to_cookie(chosen))
+        if grad_in_url:
+            _remember(response, selection.CITY_COOKIE, grad)
     return response
 
 
@@ -359,6 +383,7 @@ def _linker(picks: list[Pick], grad: str | None):
 async def selection_page(
     request: Request,
     session: SessionDep,
+    user: CurrentUser,
     izbor: list[str] | None = Query(default=None),
     otvori: str | None = None,
     dodaj: str | None = None,
@@ -374,10 +399,16 @@ async def selection_page(
     трајна намера, а „Кафе 0" би изгледало како причина кафето да не се
     избере.
     """
-    chosen, _ = selection.resolve(izbor, request.cookies.get(selection.COOKIE_NAME))
+    if user is not None:
+        remembered = await accounts.load_picks(session, user)
+        kept_city = await accounts.city_of(session, user)
+    else:
+        remembered = _cookie_keys(request)
+        kept_city = request.cookies.get(selection.CITY_COOKIE) or ""
+    chosen, _ = selection.choose(izbor, remembered)
     # Градот не се менува тука, но мора да патува со изборот - инаку
     # „Прикажи попусти" би го вратило на „сите градови".
-    grad = grad or request.cookies.get(selection.CITY_COOKIE) or None
+    grad = grad or kept_city or None
 
     # Напишан бренд: се додава и се враќа на чисто URL, за да освежување на
     # страницата не го додаде истото двапати.
@@ -411,6 +442,7 @@ async def selection_page(
             if node and not node.children
             else []
         ),
+        "user": user,
         "selected": {"grad": grad or ""},
         "link": _linker(chosen, grad),
     }
@@ -419,11 +451,15 @@ async def selection_page(
 
 @router.get("/sostojba", response_class=HTMLResponse, summary="Состојба на читањата")
 async def status_page(
-    request: Request, session: SessionDep, datum: date | None = None
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+    datum: date | None = None,
 ) -> HTMLResponse:
     run_date, is_stale = await _resolve_date(session, datum)
     context = {
         "title": "Состојба на читањата",
+        "user": user,
         "run_date": run_date,
         "today": today_local(),
         "is_stale": is_stale,
@@ -438,7 +474,10 @@ async def status_page(
     "/statistika", response_class=HTMLResponse, summary="Кој маркет попушта најмногу"
 )
 async def stats_page(
-    request: Request, session: SessionDep, datum: date | None = None
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+    datum: date | None = None,
 ) -> HTMLResponse:
     """Споредба на маркетите.
 
@@ -454,6 +493,7 @@ async def stats_page(
 
     context = {
         "title": "Статистика",
+        "user": user,
         "run_date": run_date,
         "today": today_local(),
         "chains": chains,

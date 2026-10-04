@@ -951,3 +951,75 @@ select:focus-visible,
 @media (min-width: 640px) {
   .type { grid-template-columns: 1fr auto; align-items: end; }
 }
+
+
+/* ======================= сметка ======================= */
+.topnav-me {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+/* Одјавата е формулар, не врска - затоа копчето се прави да изгледа како
+   другите ставки во менито. */
+.topnav-out { display: inline; margin: 0; }
+
+.topnav-out button {
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.topnav-out button:hover { color: var(--accent); }
+
+.auth { max-width: 420px; }
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.auth-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.auth-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.auth-hint { font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
+
+.auth-error {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 0.86rem;
+  color: var(--sale);
+  background: var(--sale-soft);
+  border-radius: var(--radius-sm);
+}
+
+.auth-submit { width: 100%; }
+
+.auth-switch { margin: 16px 0 0; font-size: 0.88rem; text-align: center; }
+
+.auth-note {
+  margin: 20px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--muted);
+}

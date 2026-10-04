@@ -133,13 +133,24 @@ def to_cookie(picks: Iterable[Pick]) -> str:
     return SEPARATOR.join(written)
 
 
-def resolve(
-    query_values: list[str] | None, cookie_raw: str | None
+def choose(
+    query_values: list[str] | None, remembered: Iterable[str]
 ) -> tuple[list[Pick], bool]:
     """(избор, дали барањето го одреди).
 
-    Второто кажува дали колачето треба да се препише.
+    Запаметеното доаѓа или од сметката, или од колачето - на ова место не е
+    важно од каде. Второто кажува дали треба да се запише.
     """
+    from_url = from_query(query_values)
+    if from_url is not None:
+        return from_url, True
+    return normalise(remembered), False
+
+
+def resolve(
+    query_values: list[str] | None, cookie_raw: str | None
+) -> tuple[list[Pick], bool]:
+    """Како `choose`, но запаметеното доаѓа од колаче."""
     from_url = from_query(query_values)
     if from_url is not None:
         return from_url, True
@@ -181,6 +192,7 @@ __all__ = [
     "MAX_COOKIE_BYTES",
     "MAX_SELECTED",
     "SEPARATOR",
+    "choose",
     "from_cookie",
     "from_query",
     "labels",

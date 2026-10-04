@@ -90,6 +90,30 @@ async def db_session(db_engine) -> AsyncIterator[AsyncSession]:
         await transaction.rollback()
 
 
+@pytest.fixture
+async def db_client(db_session) -> AsyncIterator[AsyncClient]:
+    """HTTP клиент чии записи се враќаат назад.
+
+    Обичниот `client` оди во развојната база. За страници што ПИШУВААТ
+    (регистрација, листа на корисник) тоа остава ѓубре и прави тестовите да
+    паѓаат при второ пуштање, зашто корисничкото име е веќе зафатено.
+
+    Тука сесијата на апликацијата е заменета со онаа од `db_session`, која
+    седи во транзакција што на крај се враќа назад.
+    """
+    from app.db.session import get_session
+    from app.main import create_app
+
+    async def _session() -> AsyncIterator[AsyncSession]:
+        yield db_session
+
+    app = create_app()
+    app.dependency_overrides[get_session] = _session
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+
 def load_fixture(name: str) -> str:
     """Чита зачуван примерок (HTML/JSON) од tests/fixtures."""
     return (FIXTURES_DIR / name).read_text(encoding="utf-8")
