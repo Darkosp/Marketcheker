@@ -25,7 +25,7 @@
       <a href="/izbor">што следиш</a>
       <a href="/statistika">статистика</a>
       {% if user %}
-        <span class="topnav-me">{{ user.username }}</span>
+        <span class="topnav-me">{{ user.display }}</span>
         {# Одјава со POST: врска што одјавува со клик може да ја активира и
            туѓа страница, или прелистувачот сам при предвчитување. #}
         <form class="topnav-out" method="post" action="/odjava">

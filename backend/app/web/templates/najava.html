@@ -7,7 +7,7 @@
     <section class="page-head">
       <h1>Влез</h1>
       <p class="subtitle">
-        Корисничко име и адреса — тие се твојот влез. Нема лозинка.
+        Напиши ја адресата со која ја отвори сметката. Нема лозинка.
       </p>
     </section>
 
@@ -17,18 +17,10 @@
       {% endif %}
 
       <label class="field">
-        <span class="field-label">Корисничко име</span>
-        <input class="auth-input" type="text" name="ime" value="{{ ime|default('') }}"
-               autocomplete="username" autocapitalize="none" spellcheck="false"
-               required autofocus>
-      </label>
-
-      <label class="field">
         <span class="field-label">Е-пошта</span>
         <input class="auth-input" type="email" name="posta" value="{{ posta|default('') }}"
                autocomplete="email" autocapitalize="none" spellcheck="false"
                inputmode="email" required>
-        <span class="auth-hint">Истата со која ја отвори сметката.</span>
       </label>
 
       <button class="btn auth-submit" type="submit">Влези</button>

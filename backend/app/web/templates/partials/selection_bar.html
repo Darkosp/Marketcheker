@@ -34,7 +34,7 @@
      го најде местото за избор. #}
   <a class="invite" href="/izbor{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">
     <span class="invite-text">
-      <strong>Направи си листа, {{ user.username }}.</strong>
+      <strong>Направи си листа, {{ user.display }}.</strong>
       Избери ги производите што ги купуваш — потоа тука ќе ги гледаш само
       нивните попусти, наместо сите {{ pagination.total|broj }}.
     </span>

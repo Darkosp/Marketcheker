@@ -1,9 +1,9 @@
 """Отворање сметка и влез, преку страниците.
 
-Нема лозинки. Отворањето бара корисничко име и адреса, и се потврдува со
-линк - **еднаш**. Потоа секоја најава бара корисничко име и адреса, без
-пошта. Најавата не е услов за ништо: без сметка страницата и натаму ги
-покажува сите денешни попусти.
+Нема лозинки и нема корисничко име. Адресата е сè: со неа се отвора
+сметката, се потврдува со линк - еднаш - и потоа се влегува, без пошта.
+Најавата не е услов за ништо: без сметка страницата и натаму ги покажува
+сите денешни попусти.
 
 Поштата не е наместена во тестовите, па страницата „Провери ја поштата" го
 прикажува линкот. Истото важи и на машина за развој; на production празен
@@ -19,15 +19,15 @@ from httpx import AsyncClient
 
 pytestmark = pytest.mark.db
 
-IME = "testko"
 POSTA = "testko@primer.mk"
+IME = "testko"  # делот пред „@" - така се обраќаме на екран
 
 # Линкот е апсолутен (носи PUBLIC_URL), а тест клиентот бара патека.
 TOKEN = re.compile(r'href="[^"]*/vlez\?t=([^"&]+)"')
 
 
-async def _register(client: AsyncClient, ime: str = IME, posta: str = POSTA):
-    return await client.post("/registracija", data={"ime": ime, "posta": posta})
+async def _register(client: AsyncClient, posta: str = POSTA):
+    return await client.post("/registracija", data={"posta": posta})
 
 
 def _token(html: str) -> str:
@@ -40,9 +40,9 @@ async def _enter(client: AsyncClient, html: str):
     return await client.get(f"/vlez?t={_token(html)}", follow_redirects=False)
 
 
-async def _sign_up(client: AsyncClient, ime: str = IME, posta: str = POSTA):
+async def _sign_up(client: AsyncClient, posta: str = POSTA):
     """Цел пат: отворање сметка и влегување преку линкот."""
-    return await _enter(client, (await _register(client, ime, posta)).text)
+    return await _enter(client, (await _register(client, posta)).text)
 
 
 # ==========================================================================
@@ -62,6 +62,14 @@ async def test_the_header_offers_entry_when_nobody_is_in(
 async def test_no_password_is_ever_asked_for(db_client: AsyncClient) -> None:
     for path in ("/registracija", "/najava"):
         assert 'type="password"' not in (await db_client.get(path)).text, path
+
+
+async def test_only_the_address_is_asked_for(db_client: AsyncClient) -> None:
+    """Едно поле, не две - корисничко име веќе нема."""
+    for path in ("/registracija", "/najava"):
+        html = (await db_client.get(path)).text
+        assert 'name="posta"' in html, path
+        assert 'name="ime"' not in html, path
 
 
 # ==========================================================================
@@ -117,91 +125,34 @@ async def test_a_bad_address_comes_back_with_the_reason(
     assert "адреса" in response.text
     # Напишаното не исчезнува - инаку се пишува сè одново.
     assert "ne-e-adresa" in response.text
-    assert IME in response.text
-
-
-async def test_a_bad_username_comes_back_with_the_reason(
-    db_client: AsyncClient,
-) -> None:
-    response = await _register(db_client, ime="дарко")
-    assert "Корисничкото име" in response.text
-    assert "дарко" in response.text
-
-
-async def test_a_taken_name_says_so(db_client: AsyncClient) -> None:
-    await _register(db_client)
-    response = await _register(db_client, posta="drugo@primer.mk")
-    assert "зафатено" in response.text
 
 
 async def test_a_taken_address_points_at_entering_instead(
     db_client: AsyncClient,
 ) -> None:
     await _register(db_client)
-    response = await _register(db_client, ime="drugo-ime")
+    response = await _register(db_client)
     assert "веќе има сметка" in response.text
 
 
 # ==========================================================================
 # Влез
 # ==========================================================================
-async def test_entering_with_the_name_and_the_address(
-    db_client: AsyncClient,
-) -> None:
+async def test_entering_with_the_address(db_client: AsyncClient) -> None:
     """По првата потврда, најавата не бара пошта."""
     await _sign_up(db_client)
     await db_client.post("/odjava", follow_redirects=False)
     assert IME not in (await db_client.get("/")).text
 
     response = await db_client.post(
-        "/najava", data={"ime": IME, "posta": POSTA}, follow_redirects=False
+        "/najava", data={"posta": POSTA}, follow_redirects=False
     )
     assert response.status_code == 303
     assert IME in (await db_client.get("/")).text
 
 
-async def test_the_name_alone_is_not_enough(db_client: AsyncClient) -> None:
-    """Инаку секој што ќе напише туѓо име влегува во туѓа сметка."""
-    await _sign_up(db_client)
-    await db_client.post("/odjava", follow_redirects=False)
-
-    response = await db_client.post(
-        "/najava", data={"ime": IME, "posta": ""}, follow_redirects=False
-    )
-    assert response.status_code == 200
-    assert IME not in (await db_client.get("/")).text
-
-
-async def test_the_address_alone_is_not_enough(db_client: AsyncClient) -> None:
-    await _sign_up(db_client)
-    await db_client.post("/odjava", follow_redirects=False)
-
-    await db_client.post(
-        "/najava", data={"ime": "", "posta": POSTA}, follow_redirects=False
-    )
-    assert IME not in (await db_client.get("/")).text
-
-
-async def test_a_name_with_someone_elses_address_does_not_enter(
-    db_client: AsyncClient,
-) -> None:
-    """Обете мора да се од ИСТА сметка."""
-    await _sign_up(db_client)
-    await db_client.post("/odjava", follow_redirects=False)
-    await _sign_up(db_client, "drugiot", "drugiot@primer.mk")
-    await db_client.post("/odjava", follow_redirects=False)
-
-    response = await db_client.post(
-        "/najava", data={"ime": IME, "posta": "drugiot@primer.mk"}
-    )
-    assert "Нема сметка" in response.text
-    assert IME not in (await db_client.get("/")).text
-
-
-async def test_an_unknown_account_says_so(db_client: AsyncClient) -> None:
-    response = await db_client.post(
-        "/najava", data={"ime": "nikogas", "posta": "nikogas@primer.mk"}
-    )
+async def test_an_unknown_address_says_so(db_client: AsyncClient) -> None:
+    response = await db_client.post("/najava", data={"posta": "nikogas@primer.mk"})
     assert response.status_code == 200
     assert "Нема сметка" in response.text
 
@@ -214,7 +165,7 @@ async def test_an_unconfirmed_account_gets_the_link_again(
     """
     await _register(db_client)  # без отворање на линкот
     response = await db_client.post(
-        "/najava", data={"ime": IME, "posta": POSTA}, follow_redirects=False
+        "/najava", data={"posta": POSTA}, follow_redirects=False
     )
     assert response.status_code == 200
     assert "/vlez?t=" in response.text
@@ -278,7 +229,7 @@ async def test_a_choice_made_before_does_not_overwrite_an_existing_list(
     # Друг избор на истиот уред, потоа повторен влез.
     await db_client.get("/?izbor=pelenki")
     await db_client.post(
-        "/najava", data={"ime": IME, "posta": POSTA}, follow_redirects=False
+        "/najava", data={"posta": POSTA}, follow_redirects=False
     )
 
     html = (await db_client.get("/")).text
@@ -302,11 +253,11 @@ async def test_two_people_on_one_browser_keep_separate_lists(
     db_client: AsyncClient,
 ) -> None:
     """Токму ова колачето не можеше да го направи."""
-    await _sign_up(db_client, "prviot", "prviot@primer.mk")
+    await _sign_up(db_client, "prviot@primer.mk")
     await db_client.get("/?izbor=kafe")
     await db_client.post("/odjava", follow_redirects=False)
 
-    await _sign_up(db_client, "vteriot", "vteriot@primer.mk")
+    await _sign_up(db_client, "vteriot@primer.mk")
     await db_client.get("/?izbor=pelenki")
     html = (await db_client.get("/")).text
     assert "Пелени и марамици" in html

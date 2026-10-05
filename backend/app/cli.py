@@ -57,7 +57,7 @@ def _parse(argv: list[str]) -> argparse.Namespace:
     entry = sub.add_parser(
         "vlez", help="рачен линк за влез, кога поштата не работи"
     )
-    entry.add_argument("kogo", help="корисничко име или адреса")
+    entry.add_argument("kogo", help="адресата на сметката")
 
     letter = sub.add_parser("posta", help="прати пробно писмо и кажи што падна")
     letter.add_argument("komu", help="адреса на која да стигне пробата")
@@ -182,7 +182,7 @@ async def _entry(args: argparse.Namespace) -> int:
         await session.commit()
 
     settings = get_settings()
-    print(f"Сметка: {user.username} <{user.email or 'без адреса'}>")
+    print(f"Сметка: {user.display} <{user.email or 'без адреса'}>")
     print(f"Линкот важи {settings.mail_link_minutes} минути и отвора еднаш:")
     print()
     print(f"  {settings.public_url.rstrip('/')}/vlez?t={token}")

@@ -1,4 +1,4 @@
-Здраво, {{ username }}.
+Здраво, {{ display }}.
 
 {% if first_time %}Ја отвори сметката на DARBOX Marketchecker. Остана едно нешто: да
 потврдиш дека оваа адреса е твоја.{% else %}Побарано е влегување во твојата сметка на DARBOX Marketchecker.{% endif %}
