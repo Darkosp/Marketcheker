@@ -37,6 +37,7 @@ from app.services.discounts import (
     read_quality,
     run_summary,
 )
+from app.services.highlights import best_recently, shopping_scale, total_savings
 from app.services.ingest import today_local
 from app.services.search import understand
 from app.services.stats import (
@@ -157,6 +158,10 @@ def _store_ids(raw: list[str] | None) -> list[int]:
         if text.isdigit():
             ids.append(int(text))
     return ids
+
+
+def is_htmx_request(request: Request) -> bool:
+    return bool(request.headers.get("hx-request"))
 
 
 def _cookie_keys(request: Request) -> list[str]:
@@ -299,6 +304,15 @@ async def index(
     # Празната страница се појавува само кога ИЗБОРОТ останал без попусти.
     # Бројот на проверени продавници оди со неа: „нема попуст" без него
     # изгледа како дефект, а со него е тврдење.
+    # Првото нешто за човек без сметка и без листа: зошто ова вреди.
+    # Кој веќе има листа или сметка, не му треба реклама.
+    if user is None and not chosen and not is_htmx_request(request):
+        highlights = await best_recently(session, run_date)
+        chains, stores = await shopping_scale(session)
+        context["highlights"] = highlights
+        context["highlight_total"] = total_savings(highlights)
+        context["scale"] = {"chains": chains, "stores": stores}
+
     context["empty_selection"] = bool(chosen) and not total
     if context["empty_selection"]:
         chains, store_count = await read_coverage(
@@ -308,7 +322,7 @@ async def index(
 
     # HTMX бара само резултатите; копчињата се враќаат одделно
     # (out-of-band), за да се освежи означеното иако се менува само списокот.
-    is_htmx = bool(request.headers.get("hx-request"))
+    is_htmx = is_htmx_request(request)
     context["oob"] = is_htmx
     template = "partials/results.html" if is_htmx else "index.html"
 

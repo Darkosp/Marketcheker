@@ -464,3 +464,48 @@ async def test_the_main_page_offers_the_search(client: AsyncClient) -> None:
 
 async def test_the_picker_offers_the_search_too(client: AsyncClient) -> None:
     assert 'href="/najdi' in (await client.get("/izbor")).text
+
+
+# ==========================================================================
+# Почетна страница за посетител без сметка
+# ==========================================================================
+async def test_a_visitor_is_told_what_this_is(client: AsyncClient) -> None:
+    html = (await client.get("/?izbor=")).text
+    assert "Секој ден ги читаме" in html
+    assert "Колку се заштедува" in html
+
+
+async def test_the_examples_are_marked_as_examples(client: AsyncClient) -> None:
+    """Страница што прикажува стари цени како денешни го губи човекот
+    еднаш засекогаш.
+    """
+    html = (await client.get("/?izbor=")).text
+    assert "Ова е пример, не денешна понуда" in html
+
+
+async def test_each_example_carries_the_day_it_was_seen(
+    client: AsyncClient,
+) -> None:
+    html = (await client.get("/?izbor=")).text
+    assert "save-when" in html
+
+
+async def test_the_visitor_is_invited_to_open_an_account(
+    client: AsyncClient,
+) -> None:
+    html = (await client.get("/?izbor=")).text
+    assert 'href="/registracija"' in html
+
+
+async def test_someone_with_a_list_gets_no_sales_pitch(
+    client: AsyncClient,
+) -> None:
+    """Кој веќе избрал што следи, не му треба реклама."""
+    html = (await client.get("/?izbor=kafe")).text
+    assert "Колку се заштедува" not in html
+
+
+async def test_htmx_requests_skip_the_landing(client: AsyncClient) -> None:
+    """Делче што го менува само списокот не смее да го носи целото."""
+    partial = (await client.get("/?izbor=", headers={"HX-Request": "true"})).text
+    assert "Колку се заштедува" not in partial

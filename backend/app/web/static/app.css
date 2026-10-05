@@ -108,8 +108,11 @@ a { color: var(--accent); text-decoration-thickness: 1px; }
 .brand-name strong { font-weight: 800; letter-spacing: -0.02em; }
 .brand-name { font-weight: 500; }
 
-@media (max-width: 420px) {
-  .brand-name { font-size: 0.95rem; }
+@media (max-width: 520px) {
+  .brand-name { font-size: 0.9rem; }
+  .brand-name strong { display: block; line-height: 1.1; }
+  .topnav { gap: 10px; }
+  .topnav a, .topnav-out button { font-size: 0.78rem; }
 }
 
 .topnav { display: flex; gap: 14px; }
@@ -539,22 +542,8 @@ select:focus-visible,
 @media (min-width: 960px) {
   :root { --gutter: 24px; }
 
-  .layout {
-    grid-template-columns: 272px minmax(0, 1fr);
-    align-items: start;
-    gap: 24px;
-    padding-top: 22px;
-  }
-
-  .sidebar { position: sticky; top: 68px; }
-
-  /* На компјутер филтрите се секогаш отворени - има место. */
-  .panel-head { cursor: default; }
-  .panel-caret { display: none; }
-  .panel-body { display: grid !important; }
-
+  .layout { padding-top: 22px; }
   .content { min-width: 0; }
-
   .page-head h1 { font-size: 1.6rem; }
 }
 
@@ -1145,5 +1134,203 @@ select:focus-visible,
 }
 
 .find-open:hover { border-color: var(--accent); color: var(--text); }
-.find-open strong { color: var(--accent); font-weight: 600; }
 .find-open-icon { flex: none; font-size: 1.3rem; line-height: 1; color: var(--accent); }
+.find-open-text { font-weight: 600; color: var(--text); }
+
+/* Примерите се корисни, но на тесен екран го кршат редот на четири линии. */
+.find-open-eg { display: none; color: var(--muted); }
+
+@media (min-width: 520px) {
+  .find-open-eg { display: inline; }
+}
+
+
+/* ======================= лента со филтри ======================= */
+/* Видливо е само тоа што се менува често. Сè друго е зад „повеќе":
+   поранешната странична колона држеше шест контроли отворени одеднаш. */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.bar-field { display: grid; gap: 3px; flex: 1 1 140px; min-width: 0; }
+
+.bar-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.bar select { min-height: 42px; }
+
+.bar-more { flex: none; }
+
+.bar-more > summary {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  padding: 0 14px;
+  font-size: 0.85rem;
+  color: var(--text-soft);
+  list-style: none;
+  cursor: pointer;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.bar-more > summary::-webkit-details-marker { display: none; }
+.bar-more > summary::after { content: " ▾"; color: var(--muted); }
+.bar-more[open] > summary::after { content: " ▴"; }
+.bar-more > summary:hover { border-color: var(--accent); color: var(--accent); }
+
+.bar-more-body {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+  margin-top: 8px;
+  padding: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+@media (min-width: 640px) {
+  .bar-more { position: relative; }
+  .bar-more[open] { flex: 1 1 100%; }
+  .bar-more-body { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+
+/* ======================= почетна за посетител ======================= */
+.hero {
+  padding: 28px 20px;
+  text-align: center;
+  background: linear-gradient(180deg, var(--accent-soft), var(--surface));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.hero-title {
+  margin: 0 auto 8px;
+  max-width: 24ch;
+  font-size: 1.35rem;
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+}
+
+.hero-title strong { color: var(--accent); font-weight: 750; white-space: nowrap; }
+
+.hero-sub {
+  margin: 0 auto;
+  max-width: 34ch;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--text-soft);
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin: 20px 0 0;
+}
+
+/* ---- колку се заштедува ---- */
+.saves { display: grid; gap: 12px; }
+
+.saves-title {
+  margin: 8px 0 0;
+  font-size: 1.15rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.saves-note { margin: 0; font-size: 0.86rem; line-height: 1.6; color: var(--muted); }
+
+.saves-list {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.save {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 12px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.save-what { font-size: 0.95rem; font-weight: 650; }
+
+.save-much {
+  grid-row: span 3;
+  align-self: center;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--sale);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+
+.save-much small { font-size: 0.58em; font-weight: 600; }
+
+.save-which {
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.save-when { font-size: 0.74rem; color: var(--muted); }
+
+.saves-total {
+  margin: 4px 0 0;
+  padding: 14px;
+  font-size: 1rem;
+  text-align: center;
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+}
+
+.saves-total strong {
+  font-size: 1.3rem;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.saves-truth {
+  padding: 16px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+.saves-truth p { margin: 0 0 10px; font-size: 0.88rem; line-height: 1.65; color: var(--text-soft); }
+.saves-truth p:last-child { margin-bottom: 0; }
+
+@media (min-width: 640px) {
+  .hero { padding: 40px 24px; }
+  .hero-title { font-size: 1.7rem; }
+  .saves-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (min-width: 1040px) {
+  .saves-list { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
