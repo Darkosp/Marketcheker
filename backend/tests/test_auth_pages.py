@@ -1,8 +1,9 @@
-"""Отворање сметка и влез со линк, преку страниците.
+"""Отворање сметка и влез, преку страниците.
 
-Нема лозинки. Отворањето бара корисничко име и адреса; влегувањето оди
-преку линк што стигнува на таа адреса. Најавата не е услов за ништо - без
-сметка страницата и натаму ги покажува сите денешни попусти.
+Нема лозинки. Отворањето бара корисничко име и адреса, и се потврдува со
+линк - **еднаш**. Потоа секоја најава бара корисничко име и адреса, без
+пошта. Најавата не е услов за ништо: без сметка страницата и натаму ги
+покажува сите денешни попусти.
 
 Поштата не е наместена во тестовите, па страницата „Провери ја поштата" го
 прикажува линкот. Истото важи и на машина за развој; на production празен
@@ -144,35 +145,80 @@ async def test_a_taken_address_points_at_entering_instead(
 # ==========================================================================
 # Влез
 # ==========================================================================
-async def test_entering_an_existing_account(db_client: AsyncClient) -> None:
+async def test_entering_with_the_name_and_the_address(
+    db_client: AsyncClient,
+) -> None:
+    """По првата потврда, најавата не бара пошта."""
     await _sign_up(db_client)
     await db_client.post("/odjava", follow_redirects=False)
     assert IME not in (await db_client.get("/")).text
 
-    asked = await db_client.post("/najava", data={"posta": POSTA})
-    await _enter(db_client, asked.text)
+    response = await db_client.post(
+        "/najava", data={"ime": IME, "posta": POSTA}, follow_redirects=False
+    )
+    assert response.status_code == 303
     assert IME in (await db_client.get("/")).text
 
 
-async def test_the_username_works_for_entering_too(db_client: AsyncClient) -> None:
+async def test_the_name_alone_is_not_enough(db_client: AsyncClient) -> None:
+    """Инаку секој што ќе напише туѓо име влегува во туѓа сметка."""
     await _sign_up(db_client)
     await db_client.post("/odjava", follow_redirects=False)
-    asked = await db_client.post("/najava", data={"posta": IME})
-    await _enter(db_client, asked.text)
-    assert IME in (await db_client.get("/")).text
+
+    response = await db_client.post(
+        "/najava", data={"ime": IME, "posta": ""}, follow_redirects=False
+    )
+    assert response.status_code == 200
+    assert IME not in (await db_client.get("/")).text
 
 
-async def test_an_unknown_address_answers_the_same_way(
+async def test_the_address_alone_is_not_enough(db_client: AsyncClient) -> None:
+    await _sign_up(db_client)
+    await db_client.post("/odjava", follow_redirects=False)
+
+    await db_client.post(
+        "/najava", data={"ime": "", "posta": POSTA}, follow_redirects=False
+    )
+    assert IME not in (await db_client.get("/")).text
+
+
+async def test_a_name_with_someone_elses_address_does_not_enter(
     db_client: AsyncClient,
 ) -> None:
-    """Разлика меѓу „нема таква сметка" и „писмото тргна" кажува кои адреси
-    се регистрирани.
-    """
-    response = await db_client.post("/najava", data={"posta": "nikogas@primer.mk"})
+    """Обете мора да се од ИСТА сметка."""
+    await _sign_up(db_client)
+    await db_client.post("/odjava", follow_redirects=False)
+    await _sign_up(db_client, "drugiot", "drugiot@primer.mk")
+    await db_client.post("/odjava", follow_redirects=False)
+
+    response = await db_client.post(
+        "/najava", data={"ime": IME, "posta": "drugiot@primer.mk"}
+    )
+    assert "Нема сметка" in response.text
+    assert IME not in (await db_client.get("/")).text
+
+
+async def test_an_unknown_account_says_so(db_client: AsyncClient) -> None:
+    response = await db_client.post(
+        "/najava", data={"ime": "nikogas", "posta": "nikogas@primer.mk"}
+    )
     assert response.status_code == 200
-    assert "Провери ја поштата" in response.text
-    # И никаков линк, зашто нема кому да води.
-    assert "/vlez?t=" not in response.text
+    assert "Нема сметка" in response.text
+
+
+async def test_an_unconfirmed_account_gets_the_link_again(
+    db_client: AsyncClient,
+) -> None:
+    """Потврдата на адресата е единственото нешто што оди по пошта - и не
+    смее да се прескокне со најава.
+    """
+    await _register(db_client)  # без отворање на линкот
+    response = await db_client.post(
+        "/najava", data={"ime": IME, "posta": POSTA}, follow_redirects=False
+    )
+    assert response.status_code == 200
+    assert "/vlez?t=" in response.text
+    assert IME not in (await db_client.get("/")).text
 
 
 async def test_a_used_link_does_not_work_twice(db_client: AsyncClient) -> None:
@@ -231,8 +277,9 @@ async def test_a_choice_made_before_does_not_overwrite_an_existing_list(
 
     # Друг избор на истиот уред, потоа повторен влез.
     await db_client.get("/?izbor=pelenki")
-    asked = await db_client.post("/najava", data={"posta": POSTA})
-    await _enter(db_client, asked.text)
+    await db_client.post(
+        "/najava", data={"ime": IME, "posta": POSTA}, follow_redirects=False
+    )
 
     html = (await db_client.get("/")).text
     assert "Масла и масти" in html

@@ -129,7 +129,51 @@ async def test_an_unknown_login_finds_nothing(db_session) -> None:
 
 
 # ==========================================================================
-# Влез со линк
+# Најава со корисничко име и адреса
+# ==========================================================================
+async def test_the_pair_enters(db_session) -> None:
+    await _user(db_session)
+    assert await accounts.authenticate(
+        db_session, "darko", "darko@primer.mk"
+    ) is not None
+
+
+async def test_capitals_and_spaces_do_not_matter(db_session) -> None:
+    await _user(db_session)
+    assert await accounts.authenticate(
+        db_session, "  DARKO ", " Darko@Primer.MK "
+    ) is not None
+
+
+async def test_the_name_alone_does_not_enter(db_session) -> None:
+    """Инаку секој што ќе напише туѓо име влегува во туѓа сметка."""
+    await _user(db_session)
+    assert await accounts.authenticate(db_session, "darko", "") is None
+
+
+async def test_the_address_alone_does_not_enter(db_session) -> None:
+    await _user(db_session)
+    assert await accounts.authenticate(db_session, "", "darko@primer.mk") is None
+
+
+async def test_a_name_with_another_persons_address_does_not_enter(
+    db_session,
+) -> None:
+    """Обете мора да се од ИСТА сметка."""
+    await _user(db_session, "darko", "darko@primer.mk")
+    await _user(db_session, "ana", "ana@primer.mk")
+    assert await accounts.authenticate(db_session, "darko", "ana@primer.mk") is None
+
+
+async def test_a_closed_account_does_not_enter(db_session) -> None:
+    user = await _user(db_session)
+    user.is_active = False
+    await db_session.flush()
+    assert await accounts.authenticate(db_session, "darko", "darko@primer.mk") is None
+
+
+# ==========================================================================
+# Влез со линк (само за првата потврда)
 # ==========================================================================
 async def test_the_link_lets_the_person_in(db_session) -> None:
     user = await _user(db_session)

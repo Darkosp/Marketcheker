@@ -1,8 +1,8 @@
 """Отворање сметка, влез со линк, одјава.
 
-Нема лозинки. Сметката се отвора со корисничко име и адреса; влегувањето
-оди преку линк што стигнува на таа адреса - истиот механизам и за првата
-потврда и за секоја следна најава.
+Нема лозинки. Сметката се отвора со корисничко име и адреса, и се потврдува
+со линк што стигнува на таа адреса - **еднаш**. Потоа секоја најава бара
+корисничко име и адреса, без пошта.
 
 Најавата НЕ е услов за ништо: без сметка страницата и натаму ги покажува
 сите денешни попусти. Сметката носи едно нешто - листата да биде на
@@ -146,29 +146,64 @@ async def login_form(request: Request, user: CurrentUser) -> Response:
 async def login(
     request: Request,
     session: SessionDep,
+    ime: str = Form(default=""),
     posta: str = Form(default=""),
 ) -> Response:
-    user = await accounts.find_by_login(session, posta)
-    if user is None or not user.is_active or not user.email:
-        # Истиот одговор како при постоечка сметка: разликата кажува кои
-        # адреси се регистрирани.
+    """Влез со корисничко име и адреса.
+
+    Обете мора да се од иста сметка. Непотврдената сметка не влегува - ѝ се
+    праќа линкот повторно, зашто потврдата на адресата е единственото нешто
+    што се проверува по пошта.
+    """
+    user = await accounts.authenticate(session, ime, posta)
+    if user is None:
         return _page(
             request,
-            "proveri-posta.html",
-            title="Провери ја поштата",
-            email=posta.strip().lower(),
-            first_time=False,
-            sent=True,
-            link=None,
+            "najava.html",
+            title="Влез",
+            error="Нема сметка со тоа корисничко име и таа адреса.",
+            ime=ime,
+            posta=posta,
         )
 
-    first_time = not user.is_confirmed
-    link, sent = await _send_link(request, session, user, first_time=first_time)
+    if not user.is_confirmed:
+        link, sent = await _send_link(request, session, user, first_time=True)
+        await session.commit()
+        return _sent_page(request, user, link, sent, first_time=True)
+
+    await _start_session(request, session, user)
     await session.commit()
-    return _sent_page(request, user, link, sent, first_time=first_time)
+
+    response = RedirectResponse(HOME, status_code=303)
+    _forget_cookies(response)
+    return response
 
 
-@router.get("/vlez", summary="Влез преку линкот од поштата")
+async def _start_session(
+    request: Request, session: SessionDep, user: User
+) -> bool:
+    """Го памети корисникот и го презема изборот од колачето, ако треба.
+
+    Враќа дали листата е сè уште празна - тогаш следниот чекор е изборот,
+    не списокот со сите попусти.
+
+    Некој пробал без сметка, одбрал неколку производи, па отворил сметка.
+    Тој избор не смее да исчезне - но ниту смее да прегази листа што веќе
+    постои на сметката.
+    """
+    empty = not await accounts.load_picks(session, user)
+    request.session.clear()  # нов идентитет, стара сесија не се надградува
+    request.session[SESSION_KEY] = user.id
+
+    if empty:
+        from_cookie = selection.from_cookie(request.cookies.get(selection.COOKIE_NAME))
+        if from_cookie:
+            await accounts.save_picks(session, user, from_cookie)
+            empty = False
+    return empty
+
+
+@router.get("/vlez", summary="Потврда на адресата преку линкот од поштата")
 async def enter(request: Request, session: SessionDep, t: str = "") -> Response:
     user = await accounts.redeem_login_code(session, t)
     if user is None:
@@ -179,22 +214,11 @@ async def enter(request: Request, session: SessionDep, t: str = "") -> Response:
             title="Линкот не важи",
         )
 
-    first_time = not await accounts.load_picks(session, user)
-    request.session.clear()  # нов идентитет, стара сесија не се надградува
-    request.session[SESSION_KEY] = user.id
-
-    # Некој пробал без сметка, одбрал неколку производи, па се регистрирал.
-    # Тој избор не смее да исчезне - но ниту смее да прегази листа што веќе
-    # постои на сметката.
-    if first_time:
-        from_cookie = selection.from_cookie(request.cookies.get(selection.COOKIE_NAME))
-        if from_cookie:
-            await accounts.save_picks(session, user, from_cookie)
-            first_time = False
+    empty = await _start_session(request, session, user)
     await session.commit()
 
     response = RedirectResponse(
-        AFTER_REGISTER if first_time else HOME, status_code=303
+        AFTER_REGISTER if empty else HOME, status_code=303
     )
     _forget_cookies(response)
     return response

@@ -7,20 +7,31 @@
     <section class="page-head">
       <h1>Влез</h1>
       <p class="subtitle">
-        Напиши ја адресата и ќе ти стигне линк. Нема лозинка.
+        Корисничко име и адреса — тие се твојот влез. Нема лозинка.
       </p>
     </section>
 
     <form class="auth-form" method="post" action="/najava">
+      {% if error %}
+        <p class="auth-error" role="alert">{{ error }}</p>
+      {% endif %}
+
       <label class="field">
-        <span class="field-label">Е-пошта</span>
-        <input class="auth-input" type="text" name="posta" value="{{ posta|default('') }}"
-               autocomplete="email" autocapitalize="none" spellcheck="false"
-               inputmode="email" required autofocus>
-        <span class="auth-hint">Може и корисничкото име, ако го памети подобро.</span>
+        <span class="field-label">Корисничко име</span>
+        <input class="auth-input" type="text" name="ime" value="{{ ime|default('') }}"
+               autocomplete="username" autocapitalize="none" spellcheck="false"
+               required autofocus>
       </label>
 
-      <button class="btn auth-submit" type="submit">Прати ми линк</button>
+      <label class="field">
+        <span class="field-label">Е-пошта</span>
+        <input class="auth-input" type="email" name="posta" value="{{ posta|default('') }}"
+               autocomplete="email" autocapitalize="none" spellcheck="false"
+               inputmode="email" required>
+        <span class="auth-hint">Истата со која ја отвори сметката.</span>
+      </label>
+
+      <button class="btn auth-submit" type="submit">Влези</button>
     </form>
 
     <p class="auth-switch">
