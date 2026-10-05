@@ -526,6 +526,14 @@ async def search_page(
     return templates.TemplateResponse(request, "najdi.html", context)
 
 
+@router.get("/upatstvo", response_class=HTMLResponse, summary="Како се користи")
+async def guide_page(request: Request, user: CurrentUser) -> HTMLResponse:
+    """Упатство. Нема упити - текстот е ист за секого."""
+    return templates.TemplateResponse(
+        request, "upatstvo.html", {"title": "Како се користи", "user": user}
+    )
+
+
 @router.get("/sostojba", response_class=HTMLResponse, summary="Состојба на читањата")
 async def status_page(
     request: Request,

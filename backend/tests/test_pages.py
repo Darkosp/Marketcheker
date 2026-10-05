@@ -509,3 +509,44 @@ async def test_htmx_requests_skip_the_landing(client: AsyncClient) -> None:
     """Делче што го менува само списокот не смее да го носи целото."""
     partial = (await client.get("/?izbor=", headers={"HX-Request": "true"})).text
     assert "Колку се заштедува" not in partial
+
+
+# ==========================================================================
+# Упатство
+# ==========================================================================
+async def test_the_guide_opens(client: AsyncClient) -> None:
+    assert (await client.get("/upatstvo")).status_code == 200
+
+
+async def test_the_guide_covers_the_whole_way(client: AsyncClient) -> None:
+    """Од отворање сметка до читање на картичката - тоа беше барањето."""
+    html = (await client.get("/upatstvo")).text
+    for part in (
+        "Направи сметка",
+        "Влез",
+        "Избор на производи",
+        "Како се чита картичката",
+        "Менување на листата",
+    ):
+        assert part in html, part
+
+
+async def test_the_guide_names_all_three_ways_of_choosing(
+    client: AsyncClient,
+) -> None:
+    html = (await client.get("/upatstvo")).text
+    assert "Пишуваш што бараш" in html
+    assert "Лазиш низ категории" in html
+    assert "Напишеш директно во изборот" in html
+
+
+async def test_the_guide_warns_about_cyrillic(client: AsyncClient) -> None:
+    """Најчестата причина за „не наоѓа ништо"."""
+    html = (await client.get("/upatstvo")).text
+    assert "nescafe" in html
+    assert "кирилица" in html
+
+
+async def test_every_page_links_to_the_guide(client: AsyncClient) -> None:
+    for path in ("/", "/izbor", "/najdi", "/statistika"):
+        assert "/upatstvo" in (await client.get(path)).text, path
