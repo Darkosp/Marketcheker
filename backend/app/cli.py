@@ -59,6 +59,9 @@ def _parse(argv: list[str]) -> argparse.Namespace:
     )
     entry.add_argument("kogo", help="корисничко име или адреса")
 
+    letter = sub.add_parser("posta", help="прати пробно писмо и кажи што падна")
+    letter.add_argument("komu", help="адреса на која да стигне пробата")
+
     return parser.parse_args(argv)
 
 
@@ -186,6 +189,44 @@ async def _entry(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _mail_test(args: argparse.Namespace) -> int:
+    """Пробно писмо, со точна причина кога нема да тргне.
+
+    Поштата е единственото нешто што ја потврдува адресата; кога нема да
+    работи, мора да се знае ДАЛИ е врската, лозинката или сертификатот.
+    """
+    from app.core.config import get_settings
+    from app.services import mail
+
+    settings = get_settings()
+    print(f"Сервер:   {settings.smtp_host}:{settings.smtp_port}")
+    print(f"Корисник: {settings.smtp_user}")
+    print(f"TLS:      {'од првиот бајт' if settings.smtp_ssl else 'STARTTLS'}"
+          f", проверка на сертификат: {'да' if settings.smtp_verify else 'НЕ'}")
+    print()
+
+    if not settings.mail_enabled:
+        print("SMTP_HOST е празен - поштата воопшто не е наместена.")
+        return 1
+
+    ok = await mail.send(
+        to=args.komu,
+        subject="Проба од DARBOX Marketchecker",
+        text="Ако ова писмо стигна, поштата работи.",
+        html="<p>Ако ова писмо стигна, поштата работи.</p>",
+    )
+    if ok:
+        print(f"Писмото тргна кон {args.komu}. Провери го сандачето и спамот.")
+        return 0
+    print("Писмото НЕ тргна. Причината е во редот со ERROR погоре.")
+    print()
+    print("Ако пишува 'Hostname mismatch' - серверот нуди сертификат на")
+    print("друго име. Стави SMTP_VERIFY=false во .env.")
+    print("Ако пишува 'Timed out' - серверот не одговара: или е блокирана")
+    print("оваа IP адреса (премногу неуспешни обиди), или портот е затворен.")
+    return 1
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse(argv if argv is not None else sys.argv[1:])
     setup_logging(get_settings().log_level)
@@ -201,6 +242,8 @@ def main(argv: list[str] | None = None) -> int:
                     return await _cleanup()
                 case "vlez":
                     return await _entry(args)
+                case "posta":
+                    return await _mail_test(args)
                 case _:
                     return await _report(args)
         finally:
