@@ -12,10 +12,11 @@ from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
+from app.catalog.picks import Pick, like_pattern
 from app.models import (
     Chain,
     City,
@@ -25,7 +26,7 @@ from app.models import (
     ProductCategory,
     Store,
 )
-from app.models.enums import PromoType
+from app.models.enums import PromoType, RunStatus
 
 # Основните единици се чуваат латинично; на екран одат на македонски.
 UNIT_LABELS = {
@@ -47,7 +48,11 @@ Group = aliased(ProductCategory, name="grupa")
 class SortBy(StrEnum):
     """Начини на подредување што ги бара спецификацијата."""
 
-    DISCOUNT_PCT = "popust"  # најголем попуст прво
+    # Колку денари се заштедуваат - главната мерка. Процентот лаже за
+    # ситните производи: 50% на производ од 100 денари е 50 денари, а
+    # 28% на кафе од 700 е 200.
+    SAVINGS = "zasteda"
+    DISCOUNT_PCT = "popust"  # најголем попуст прво (стари линкови)
     PRICE_ASC = "cena"  # најниска цена прво
     UNIT_PRICE = "edinecna"  # најевтино по кг/л - „каде е најевтино"
     STORE = "market"
@@ -62,6 +67,10 @@ class DiscountFilter:
     city_slug: str | None = None
     store_ids: list[int] = field(default_factory=list)
     group_slug: str | None = None
+    # Што следи корисникот. Празно значи сè. Одделено од `group_slug`
+    # намерно - изборот е трајна намера, а `group_slug` е прелистување
+    # ВНАТРЕ во неа (копчињата над списокот).
+    picks: list[Pick] = field(default_factory=list)
     # Попустите само со картичка за лојалност се прикажуваат означено;
     # со ова може и да се исклучат.
     include_loyalty: bool = True
@@ -116,6 +125,18 @@ class DiscountRow:
         return f"{self.chain_name} · {self.store_count} продавници"
 
     @property
+    def savings(self) -> Decimal | None:
+        """Колку денари се заштедуваат.
+
+        Не секој ценовник ја пишува редовната цена; тогаш заштедата не се
+        знае и не се прикажува - подобро отколку да се измисли нула.
+        """
+        if self.regular_price is None or self.discount_price is None:
+            return None
+        difference = self.regular_price - self.discount_price
+        return difference if difference > 0 else None
+
+    @property
     def is_loyalty_only(self) -> bool:
         """Важи само со картичка за лојалност - се прикажува означено."""
         return self.promo_type is PromoType.LOYALTY
@@ -127,6 +148,27 @@ class DiscountRow:
             return None
         unit = UNIT_LABELS.get(self.base_unit, self.base_unit)
         return f"{self.unit_price_base:.0f} ден/{unit}"
+
+
+def _pick_clause(pick: Pick):
+    """Еден избор: категоријата И секој негов збор.
+
+    Зборот се бара во називот онака како што е напишан во ценовникот - тоа
+    е и „инстант" (вид) и „нескафе" (бренд) и „200" (грамажа). Еден
+    механизам за трите нивоа.
+    """
+    conditions = []
+    if pick.category:
+        # Избрана група ја носи целата своја содржина, избрана под-категорија
+        # само себе - истото правило како кај `group_slug`.
+        conditions.append(
+            or_(Category.slug == pick.category, Group.slug == pick.category)
+        )
+    conditions.extend(
+        Product.raw_name.ilike(like_pattern(term), escape="\\")
+        for term in pick.terms
+    )
+    return and_(*conditions)
 
 
 def _join_and_filter(query: Select, filters: DiscountFilter) -> Select:
@@ -146,6 +188,9 @@ def _join_and_filter(query: Select, filters: DiscountFilter) -> Select:
         .where(PriceRow.run_date == filters.run_date, PriceRow.is_discount.is_(True))
     )
 
+    if filters.picks:
+        # Меѓу изборите е ИЛИ: листата е „ова, или ова, или ова".
+        query = query.where(or_(*(_pick_clause(pick) for pick in filters.picks)))
     if filters.city_slug:
         query = query.where(City.slug == filters.city_slug)
     if filters.store_ids:
@@ -165,6 +210,12 @@ def _join_and_filter(query: Select, filters: DiscountFilter) -> Select:
         query = query.where(PriceRow.is_single_day.is_(True))
 
     return query
+
+
+# Заштедата во денари: разликата меѓу редовната и акциската цена. Двете
+# можат да фалат (не секој ценовник ја пишува редовната), па редовите без
+# неа одат на крај наместо да се преправаат дека заштедата е нула.
+SAVINGS = PriceRow.regular_price - PriceRow.discount_price
 
 
 # Колоните по кои се спојуваат редовите. Цената е меѓу нив намерно:
@@ -192,6 +243,8 @@ def _aggregated_ordering(filters: DiscountFilter):
     па смеат да се користат директно.
     """
     match filters.sort_by:
+        case SortBy.SAVINGS:
+            return (SAVINGS.desc().nullslast(), Product.raw_name)
         case SortBy.DISCOUNT_PCT:
             return (PriceRow.discount_pct.desc().nullslast(), Product.raw_name)
         case SortBy.PRICE_ASC:
@@ -364,6 +417,44 @@ async def latest_run_date(session: AsyncSession) -> date | None:
     )
 
 
+async def read_coverage(
+    session: AsyncSession,
+    run_date: date,
+    city_slug: str | None = None,
+    store_ids: list[int] | None = None,
+) -> tuple[int, int]:
+    """(маркети, продавници) што се ПРОЧИТАНИ за денот.
+
+    Служи празната страница да каже што било проверено. „Нема попуст" без
+    тој број изгледа како дефект; со него е тврдење: гледано е во 341
+    продавница и го нема.
+
+    Се бројат само читањата што поминале. Падна ли извор, тој не смее да
+    влезе во бројот - инаку страницата тврди дека проверила нешто што не
+    проверила.
+    """
+    good = (RunStatus.SUCCESS, RunStatus.EMPTY, RunStatus.UNCHANGED)
+    query = (
+        select(
+            func.count(func.distinct(PricelistRun.chain_id)),
+            func.count(func.distinct(PricelistRun.store_id)),
+        )
+        .where(PricelistRun.run_date == run_date, PricelistRun.status.in_(good))
+    )
+
+    if city_slug or store_ids:
+        query = query.join(Store, PricelistRun.store_id == Store.id)
+    if city_slug:
+        query = query.join(City, Store.city_id == City.id).where(
+            City.slug == city_slug
+        )
+    if store_ids:
+        query = query.where(PricelistRun.store_id.in_(store_ids))
+
+    row = (await session.execute(query)).one()
+    return int(row[0] or 0), int(row[1] or 0)
+
+
 async def read_quality(
     session: AsyncSession, run_date: date
 ) -> list[tuple[str, int, int, int]]:
@@ -455,6 +546,7 @@ __all__ = [
     "counts_by_subcategory",
     "latest_run_date",
     "list_discounts",
+    "read_coverage",
     "read_quality",
     "run_summary",
 ]

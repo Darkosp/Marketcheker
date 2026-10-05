@@ -1,0 +1,142 @@
+# Marketchecker - состав за сервер.
+#
+# Разликите од развојниот состав не се козметички:
+#
+#   - базата НЕ излегува на интернет (нема `ports`), ѝ пристапуваат само
+#     контејнерите на истата мрежа;
+#   - апликацијата исто така не излегува - пред неа стои Caddy, кој сам го
+#     вади и обновува сертификатот;
+#   - кодот е ВГРАДЕН во сликата (`target: prod`), нема жив код од дискот,
+#     нема `--reload`;
+#   - миграциите се вртат како одделен чекор пред да стартува што било, за
+#     да новата верзија никогаш не зборува со стара шема;
+#   - резервна копија секој ден, зашто две години историја на цени не се
+#     враќаат со повторно читање.
+#
+# Стартување:
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# Чекор по чекор: docs/postavuvanje.md
+name: marketchecker
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C.UTF-8"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./config/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  # Еднократен чекор: шемата се подига пред апликацијата да ја допре.
+  migrate:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: prod
+    restart: "no"
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      APP_ENV: production
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: prod
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      APP_ENV: production
+    # Нема `ports`: до неа се стига само преку Caddy.
+    expose:
+      - "8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  scheduler:
+    # Дневното читање во 11:00 (Europe/Skopje). Одделен контејнер, за да не
+    # се удвои ако api еден ден се врти во повеќе копии.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      target: prod
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      APP_ENV: production
+    command: ["python", "-m", "app.scheduler"]
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  caddy:
+    # Caddy сам го вади сертификатот од Let's Encrypt и сам го обновува.
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ./config/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+
+  backup:
+    # Дневна копија на базата. Читањето може да се повтори; историјата на
+    # цени од пред месец - не.
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+    volumes:
+      - ./backups:/backups
+      - ./config/backup.sh:/backup.sh:ro
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

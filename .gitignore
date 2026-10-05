@@ -44,3 +44,6 @@ data/cache/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Резервни копии на базата (prod составот ги пишува тука)
+backups/

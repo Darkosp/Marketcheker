@@ -1,0 +1,38 @@
+{# Нема попуст на ништо од избраното.
+
+   Пораката МОРА да каже што е проверено. „Нема попуст" само по себе
+   изгледа како дефект; со списокот и со бројот на продавници е тврдење:
+   гледано е, го нема. #}
+<section class="empty-pick">
+  <p class="empty-pick-mark" aria-hidden="true">—</p>
+
+  <h2 class="empty-pick-title">
+    Денес нема попуст на ниту еден од избраните производи.
+  </h2>
+
+  <p class="empty-pick-checked">
+    <span class="empty-pick-label">Проверени:</span>
+    {{ chosen_labels | join(", ") }}
+    {%- if coverage %} ·
+      {{ coverage.chains | brojka("маркет", "маркети") }},
+      {{ coverage.stores | brojka("продавница", "продавници") }}
+      {%- if selected.grad %} во {{ selected.grad_name }}{% endif %}
+    {%- endif %}
+  </p>
+
+  {% if selected.market or selected.ednodnevni or not selected.lojalnost %}
+    {# Филтрите исто можат да го испразнат списокот. Ако се вклучени, се
+       кажува - инаку изгледа како изборот да е виновен. #}
+    <p class="empty-pick-note">
+      Вклучени се и филтри од страничната лента. Исклучи ги ако сакаш
+      поширок преглед.
+    </p>
+  {% endif %}
+
+  <p class="empty-pick-actions">
+    <a class="btn" href="/izbor{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">
+      Промени избор
+    </a>
+    <a class="btn btn-ghost" href="/?izbor=">Види ги сите попусти</a>
+  </p>
+</section>

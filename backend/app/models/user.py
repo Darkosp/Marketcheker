@@ -1,23 +1,38 @@
-"""Корисници и нивни избори (град, продавници, категории)."""
+"""Корисници и нивните избори (град, продавници, производи)."""
 
 from __future__ import annotations
 
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, String
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin
 
 if TYPE_CHECKING:
-    from app.models.catalog import ProductCategory
     from app.models.chain import Store
     from app.models.geo import City
 
 
 class User(Base, TimestampMixin):
-    """Најава со корисничко име + лозинка (argon2)."""
+    """Сметка без лозинка.
+
+    Се отвора со корисничко име и адреса; влегувањето оди преку линк што
+    стигнува на таа адреса - истиот механизам и за првата потврда и за
+    секоја следна најава.
+
+    `password_hash` останува, но празен: старите сметки направени со
+    лозинка не се бришат, а новите не ја користат. Кога ќе се испразни
+    сосема, колоната може да падне.
+    """
 
     __tablename__ = "app_user"  # "user" е резервиран збор во PostgreSQL
 
@@ -25,7 +40,20 @@ class User(Base, TimestampMixin):
     # Се чува секогаш со мали букви (нормализирано при регистрација), за да
     # „Darko" и „darko" не бидат два различни корисника.
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
+
+    # Адресата е единствена: едно сандаче, една сметка. Може да фали само
+    # кај старите сметки направени пред да има пошта.
+    email: Mapped[str | None] = mapped_column(String(254), unique=True, index=True)
+    # Празно значи непотврдена адреса - сметката постои, но не се отвора.
+    email_confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    # Еднократниот код во последниот испратен линк. Се брише при влегување,
+    # па линкот важи еднаш; нов линк го поништува претходниот.
+    login_code: Mapped[str | None] = mapped_column(String(64))
+
+    # Останува од верзијата со лозинки; новите сметки го немаат.
+    password_hash: Mapped[str | None] = mapped_column(String(255))
 
     city_id: Mapped[int | None] = mapped_column(
         ForeignKey("city.id", ondelete="SET NULL"), index=True
@@ -36,15 +64,22 @@ class User(Base, TimestampMixin):
         Boolean, default=False, server_default="false"
     )
 
+    # Затворена сметка - одлука на администраторот, одделно од потврдата.
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    @property
+    def is_confirmed(self) -> bool:
+        return self.email_confirmed_at is not None
 
     city: Mapped[City | None] = relationship(back_populates="users")
     store_links: Mapped[list[UserStore]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
-    category_links: Mapped[list[UserCategory]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
+    picks: Mapped[list[UserPick]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        order_by="UserPick.position",
     )
 
     def __repr__(self) -> str:
@@ -67,17 +102,35 @@ class UserStore(Base):
     store: Mapped[Store] = relationship()
 
 
-class UserCategory(Base):
-    """Одбрани општи категории на корисникот."""
+class UserPick(Base, TimestampMixin):
+    """Едно нешто што корисникот следи.
 
-    __tablename__ = "user_category"
+    Се чува ТОЧНО во истиот запис како во URL-то и во колачето:
+    „kafe" за цела категорија, „kafe~нескафе" за бренд во неа, „~нескафе"
+    за бренд насекаде. Еден запис, еден парсер (`app.catalog.picks`), едно
+    правило за чистење - наместо трета претстава што треба да се држи во
+    чекор со другите две.
 
+    Затоа тука нема врска кон `product_category`: слугот е идентитетот низ
+    целата апликација, а категориите се создаваат ОД код. Непознат слуг не
+    е грешка во базата - се игнорира при читање, исто како во URL-то.
+    """
+
+    __tablename__ = "user_pick"
+    __table_args__ = (
+        UniqueConstraint("user_id", "pick_key", name="user_pick_unique"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(
-        ForeignKey("app_user.id", ondelete="CASCADE"), primary_key=True
+        ForeignKey("app_user.id", ondelete="CASCADE"), index=True
     )
-    category_id: Mapped[int] = mapped_column(
-        ForeignKey("product_category.id", ondelete="CASCADE"), primary_key=True
-    )
+    pick_key: Mapped[str] = mapped_column(String(200))
+    # Редоследот го одредува каталогот, не корисникот, но се запишува за да
+    # листата изгледа исто при секое читање.
+    position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
-    user: Mapped[User] = relationship(back_populates="category_links")
-    category: Mapped[ProductCategory] = relationship()
+    user: Mapped[User] = relationship(back_populates="picks")
+
+    def __repr__(self) -> str:
+        return f"<UserPick {self.pick_key!r}>"

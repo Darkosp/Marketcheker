@@ -1,0 +1,43 @@
+{# Што се следи, над списокот.
+
+   Изборот живее во скриени полиња: формуларот го праќа со секое барање, па
+   страничењето, подредувањето и филтрите не го губат. #}
+{% for pick in selected.izbor %}
+  <input type="hidden" name="izbor" value="{{ pick.key }}">
+{% endfor %}
+{# Празната вредност оди секогаш, за да барањето биде изјаснето за изборот
+   и колачето да не го враќа избришаното. #}
+<input type="hidden" name="izbor" value="">
+
+<div class="picked">
+  {% if chosen %}
+    <span class="picked-label">Следиш:</span>
+    {# Секој избор е свое зрно: „Кафе · нескафе" и „Кафе · јакобс" споени
+       со истиот знак се читаат како еден долг низ. #}
+    <span class="picked-list">
+      {% for pick in chosen %}
+        <span class="picked-one">{{ pick.label }}</span>
+      {% endfor %}
+    </span>
+    <a class="picked-edit" href="/izbor{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">промени</a>
+    <a class="picked-clear" href="/?izbor=">сите производи</a>
+  {% else %}
+    <span class="picked-list">Се прикажуваат сите денешни попусти.</span>
+    <a class="picked-edit" href="/izbor{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">избери што следиш</a>
+  {% endif %}
+</div>
+
+{% if user and not chosen %}
+  {# Најавен човек со празна листа ја гледа целата понуда - токму тоа што
+     сакаше да го избегне кога направи сметка. Ситна врска не е доволна:
+     првиот корисник ја направи сметката, го постави градот, и воопшто не
+     го најде местото за избор. #}
+  <a class="invite" href="/izbor{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">
+    <span class="invite-text">
+      <strong>Направи си листа, {{ user.username }}.</strong>
+      Избери ги производите што ги купуваш — потоа тука ќе ги гледаш само
+      нивните попусти, наместо сите {{ pagination.total|broj }}.
+    </span>
+    <span class="invite-go">Избери производи →</span>
+  </a>
+{% endif %}

@@ -12,7 +12,9 @@
   <span id="loading" class="loading" aria-live="polite">се вчитува…</span>
 </div>
 
-{% if not rows %}
+{% if empty_selection %}
+  {% include "partials/empty_selection.html" %}
+{% elif not rows %}
   <p class="empty">
     Нема попусти што одговараат на избраното.<br>
     Пробај со друг град или без филтри.
@@ -21,27 +23,37 @@
   <ul class="cards">
     {% for row in rows %}
       <li class="card{% if row.is_loyalty_only %} card-loyalty{% endif %}">
-        <div class="card-top">
-          <h3 class="name">{{ row.product_name }}</h3>
-          {% if row.discount_pct %}
-            {% set pct = row.discount_pct|round(0, "floor")|int %}
-            <span class="pct {% if pct >= 40 %}pct-high{% elif pct >= 20 %}pct-mid{% endif %}">
-              −{{ pct }}%
+        {# Називот е точно како во ценовникот - така корисникот го бара на
+           полицата. #}
+        <h3 class="name">{{ row.product_name }}</h3>
+
+        {# Трите броја: што чинеше, што чини, колку се заштедува. Процентот
+           го нема намерно: 50% на производ од 100 денари е 50 денари, а
+           28% на кафе од 700 е 200 - бројот во денари е тој што кажува. #}
+        <div class="prices">
+          {% if row.regular_price %}
+            <span class="price-was">
+              <span class="price-cap">редовна</span>
+              <s>{{ row.regular_price|round(0, "floor")|int }} ден</s>
+            </span>
+          {% endif %}
+          {% if row.discount_price %}
+            <span class="price-now">
+              <span class="price-cap">со попуст</span>
+              <strong>{{ row.discount_price|round(0, "floor")|int }} ден</strong>
+            </span>
+          {% endif %}
+          {% if row.savings %}
+            <span class="price-save">
+              <span class="price-cap">заштеда</span>
+              <strong>{{ row.savings|round(0, "floor")|int }} ден</strong>
             </span>
           {% endif %}
         </div>
 
-        <div class="prices">
-          {% if row.discount_price %}
-            <span class="price-new">{{ row.discount_price|round(0, "floor")|int }}<small>ден</small></span>
-          {% endif %}
-          {% if row.regular_price %}
-            <s class="price-old">{{ row.regular_price|round(0, "floor")|int }}</s>
-          {% endif %}
-          {% if row.unit_price_label %}
-            <span class="price-unit">{{ row.unit_price_label }}</span>
-          {% endif %}
-        </div>
+        {% if row.unit_price_label %}
+          <p class="price-unit">{{ row.unit_price_label }}</p>
+        {% endif %}
 
         <div class="card-meta">
           <span class="store">{{ row.where_label }}</span>
@@ -53,13 +65,16 @@
         </div>
 
         <div class="tags">
-          {% if row.is_loyalty_only %}
-            <span class="tag tag-loyalty">само со картичка</span>
-          {% endif %}
+          {# Колку трае - онака како што го пишува ценовникот. #}
           {% if row.is_single_day %}
             <span class="tag tag-day">само денес</span>
           {% elif row.valid_to %}
-            <span class="tag">до {{ row.valid_to.strftime("%d.%m") }}</span>
+            <span class="tag tag-day">акција до {{ row.valid_to.strftime("%d.%m") }}</span>
+          {% else %}
+            <span class="tag">без наведен рок</span>
+          {% endif %}
+          {% if row.is_loyalty_only %}
+            <span class="tag tag-loyalty">само со картичка</span>
           {% endif %}
           {% if row.subcategory_name %}
             <span class="tag tag-sub">{{ row.subcategory_name }}</span>

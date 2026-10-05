@@ -14,10 +14,12 @@ async def test_health_ok(client: AsyncClient) -> None:
 async def test_index_renders(client: AsyncClient) -> None:
     response = await client.get("/")
     assert response.status_code == 200
+    # Марката и описниот дел се одделни елементи - „DARBOX" е подебело.
+    assert "DARBOX" in response.text
     assert "Marketchecker" in response.text
 
 
 async def test_openapi_available(client: AsyncClient) -> None:
     response = await client.get("/openapi.json")
     assert response.status_code == 200
-    assert response.json()["info"]["title"] == "Marketchecker"
+    assert response.json()["info"]["title"] == "DARBOX Marketchecker"

@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 
 from app import __version__
-from app.api.routes import health, pages
+from app.api.routes import auth, health, pages
 from app.core.config import get_settings
 from app.core.logging import get_logger, setup_logging
 from app.db.session import dispose_engine
@@ -25,7 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     setup_logging(settings.log_level)
     log.info(
-        "Marketchecker %s стартува (околина=%s, зона=%s)",
+        "DARBOX Marketchecker %s стартува (околина=%s, зона=%s)",
         __version__,
         settings.app_env,
         settings.scheduler_timezone,
@@ -33,14 +33,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # Табелите ги создава Alembic (`alembic upgrade head`), не апликацијата.
     yield
     await dispose_engine()
-    log.info("Marketchecker запре")
+    log.info("DARBOX Marketchecker запре")
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
-        title="Marketchecker",
+        title="DARBOX Marketchecker",
         description="Дневни попусти од ценовниците на маркетите во Македонија.",
         version=__version__,
         lifespan=lifespan,
@@ -48,13 +48,16 @@ def create_app() -> FastAPI:
         redoc_url=None,
     )
 
-    # Сесијата го држи најавениот корисник (чекор 5).
+    # Сесијата го држи најавениот корисник.
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.secret_key,
         session_cookie="mc_session",
         https_only=settings.is_production,
         same_site="lax",
+        # Долго намерно: без лозинка, секоја повторна најава значи уште една
+        # посета на поштата. Три месеци прави тоа да биде редок настан.
+        max_age=settings.session_days * 24 * 60 * 60,
     )
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
@@ -74,6 +77,7 @@ def create_app() -> FastAPI:
         )
 
     app.include_router(health.router)
+    app.include_router(auth.router)
     app.include_router(pages.router)
 
     return app

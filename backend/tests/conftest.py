@@ -20,6 +20,10 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-dolga-najmalku-16")
 os.environ.setdefault("POSTGRES_PASSWORD", "test")
+# Тестовите НЕ смеат да допираат мрежа. Без ова, секое отворање сметка во
+# тест праќаше вистинско писмо преку серверот од .env - и паѓаше на него.
+os.environ["SMTP_HOST"] = ""
+os.environ["PUBLIC_URL"] = "http://test"
 # POSTGRES_HOST/PORT намерно НЕ се поставуваат тука: променливите на околината
 # имаат предност над .env во pydantic-settings, па би ја пребришале вистинската
 # конфигурација. Внатре во контејнерот (docker compose run --rm api pytest)
@@ -88,6 +92,30 @@ async def db_session(db_engine) -> AsyncIterator[AsyncSession]:
         async with maker() as session:
             yield session
         await transaction.rollback()
+
+
+@pytest.fixture
+async def db_client(db_session) -> AsyncIterator[AsyncClient]:
+    """HTTP клиент чии записи се враќаат назад.
+
+    Обичниот `client` оди во развојната база. За страници што ПИШУВААТ
+    (регистрација, листа на корисник) тоа остава ѓубре и прави тестовите да
+    паѓаат при второ пуштање, зашто корисничкото име е веќе зафатено.
+
+    Тука сесијата на апликацијата е заменета со онаа од `db_session`, која
+    седи во транзакција што на крај се враќа назад.
+    """
+    from app.db.session import get_session
+    from app.main import create_app
+
+    async def _session() -> AsyncIterator[AsyncSession]:
+        yield db_session
+
+    app = create_app()
+    app.dependency_overrides[get_session] = _session
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
 
 
 def load_fixture(name: str) -> str:

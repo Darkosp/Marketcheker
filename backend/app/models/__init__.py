@@ -12,7 +12,7 @@ from app.models.enums import (
 from app.models.geo import City
 from app.models.prices import CurrentPrice, DailyStoreStats, PriceChange
 from app.models.pricing import PricelistRun, PriceRow
-from app.models.user import User, UserCategory, UserStore
+from app.models.user import User, UserPick, UserStore
 
 __all__ = [
     "Base",
@@ -32,6 +32,6 @@ __all__ = [
     "RunStatus",
     "Store",
     "User",
-    "UserCategory",
+    "UserPick",
     "UserStore",
 ]

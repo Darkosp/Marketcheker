@@ -16,10 +16,21 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Зависностите во одделен слој: кодот се менува често, зависностите ретко.
-COPY requirements.txt requirements-dev.txt ./
-RUN pip install -r requirements.txt
+#
+# Се инсталира ЗАКЛУЧЕНИОТ список, не долните граници. Со `requirements.txt`
+# секое повторно градење можеше тивко да повлече нова верзија: едно такво
+# градење донесе selectolax 1.0, кој го отстрани разложувачот што го
+# користевме, и читачите паднаа при увоз. На сервер тоа би се случило при
+# првото пуштање.
+#
+# Нова верзија се зема намерно: се менува requirements.txt и се регенерира
+# requirements.lock.txt (`docker compose exec api pip freeze`).
+COPY requirements.txt requirements-dev.txt requirements.lock.txt ./
+RUN pip install -r requirements.lock.txt
 
 FROM base AS dev
+# Развојните алатки се веќе во заклучениот список; ова е за случај кога
+# requirements-dev.txt добил нешто ново пред да се регенерира lock.
 RUN pip install -r requirements-dev.txt
 COPY backend/ /app/
 # Не работи како root.
