@@ -20,6 +20,10 @@ FIXTURES_DIR = Path(__file__).parent / "fixtures"
 os.environ.setdefault("APP_ENV", "test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key-dolga-najmalku-16")
 os.environ.setdefault("POSTGRES_PASSWORD", "test")
+# Тестовите НЕ смеат да допираат мрежа. Без ова, секое отворање сметка во
+# тест праќаше вистинско писмо преку серверот од .env - и паѓаше на него.
+os.environ["SMTP_HOST"] = ""
+os.environ["PUBLIC_URL"] = "http://test"
 # POSTGRES_HOST/PORT намерно НЕ се поставуваат тука: променливите на околината
 # имаат предност над .env во pydantic-settings, па би ја пребришале вистинската
 # конфигурација. Внатре во контејнерот (docker compose run --rm api pytest)

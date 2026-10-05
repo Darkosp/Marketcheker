@@ -1054,3 +1054,6 @@ select:focus-visible,
   background: var(--accent);
   border-radius: var(--radius-sm);
 }
+
+.why { margin: 0 0 18px; padding-left: 20px; font-size: 0.9rem; line-height: 1.7; }
+.why strong { color: var(--text); }

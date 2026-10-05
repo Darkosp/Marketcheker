@@ -22,6 +22,8 @@ def _settings(**overrides) -> Settings:
         "app_env": "production",
         "secret_key": REAL_SECRET,
         "postgres_password": REAL_PASSWORD,
+        # Без пошта нема најава, па production не стартува без неа.
+        "smtp_host": "posta.primer.mk",
         "_env_file": None,  # не чита .env - тестот не зависи од машината
     }
     values.update(overrides)
@@ -68,6 +70,31 @@ def test_the_message_names_what_is_wrong() -> None:
 
 def test_production_accepts_real_secrets() -> None:
     assert _settings().is_production is True
+
+
+# ==========================================================================
+# Без пошта нема најава
+# ==========================================================================
+def test_production_refuses_to_start_without_mail() -> None:
+    """Сметката се отвора и се влегува САМО преку линк по пошта.
+
+    Сервер без пошта значи дека никој не може да влезе - ни сопственикот.
+    Подобро да не стартува отколку луѓето да останат заклучени надвор.
+    """
+    with pytest.raises(ValidationError, match="SMTP_HOST"):
+        _settings(smtp_host="")
+
+
+def test_mail_is_optional_while_developing() -> None:
+    """Локално линкот се запишува во дневникот - тестирањето не смее да
+    зависи од сервис за пошта.
+    """
+    settings = _settings(app_env="development", smtp_host="")
+    assert settings.mail_enabled is False
+
+
+def test_mail_counts_as_set_up_when_there_is_a_server() -> None:
+    assert _settings().mail_enabled is True
 
 
 # ==========================================================================

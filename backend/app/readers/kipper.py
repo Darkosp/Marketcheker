@@ -29,7 +29,10 @@ from decimal import Decimal
 from typing import Any, ClassVar
 from urllib.parse import urljoin
 
-from selectolax.parser import HTMLParser
+# Lexbor наместо Modest: Modest е отстранет во selectolax 1.0.
+# API-то е исто за css()/text()/attributes, па парсирањето не се менува -
+# тоа го потврдуваат тестовите врз зачуваните ценовници.
+from selectolax.lexbor import LexborHTMLParser as HTMLParser
 
 from app.core.logging import get_logger
 from app.readers.base import (

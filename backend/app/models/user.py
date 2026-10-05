@@ -23,7 +23,16 @@ if TYPE_CHECKING:
 
 
 class User(Base, TimestampMixin):
-    """Најава со корисничко име + лозинка (argon2)."""
+    """Сметка без лозинка.
+
+    Се отвора со корисничко име и адреса; влегувањето оди преку линк што
+    стигнува на таа адреса - истиот механизам и за првата потврда и за
+    секоја следна најава.
+
+    `password_hash` останува, но празен: старите сметки направени со
+    лозинка не се бришат, а новите не ја користат. Кога ќе се испразни
+    сосема, колоната може да падне.
+    """
 
     __tablename__ = "app_user"  # "user" е резервиран збор во PostgreSQL
 
@@ -31,7 +40,20 @@ class User(Base, TimestampMixin):
     # Се чува секогаш со мали букви (нормализирано при регистрација), за да
     # „Darko" и „darko" не бидат два различни корисника.
     username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    password_hash: Mapped[str] = mapped_column(String(255))
+
+    # Адресата е единствена: едно сандаче, една сметка. Може да фали само
+    # кај старите сметки направени пред да има пошта.
+    email: Mapped[str | None] = mapped_column(String(254), unique=True, index=True)
+    # Празно значи непотврдена адреса - сметката постои, но не се отвора.
+    email_confirmed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
+    # Еднократниот код во последниот испратен линк. Се брише при влегување,
+    # па линкот важи еднаш; нов линк го поништува претходниот.
+    login_code: Mapped[str | None] = mapped_column(String(64))
+
+    # Останува од верзијата со лозинки; новите сметки го немаат.
+    password_hash: Mapped[str | None] = mapped_column(String(255))
 
     city_id: Mapped[int | None] = mapped_column(
         ForeignKey("city.id", ondelete="SET NULL"), index=True
@@ -42,8 +64,13 @@ class User(Base, TimestampMixin):
         Boolean, default=False, server_default="false"
     )
 
+    # Затворена сметка - одлука на администраторот, одделно од потврдата.
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true")
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    @property
+    def is_confirmed(self) -> bool:
+        return self.email_confirmed_at is not None
 
     city: Mapped[City | None] = relationship(back_populates="users")
     store_links: Mapped[list[UserStore]] = relationship(

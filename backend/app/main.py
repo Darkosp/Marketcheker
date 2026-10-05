@@ -55,6 +55,9 @@ def create_app() -> FastAPI:
         session_cookie="mc_session",
         https_only=settings.is_production,
         same_site="lax",
+        # Долго намерно: без лозинка, секоја повторна најава значи уште една
+        # посета на поштата. Три месеци прави тоа да биде редок настан.
+        max_age=settings.session_days * 24 * 60 * 60,
     )
 
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")

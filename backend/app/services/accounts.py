@@ -1,30 +1,33 @@
-"""Сметки: регистрација, најава, и што следи секој корисник.
+"""Сметки: отворање, влез со линк, и што следи секој корисник.
 
-Изборот досега живееше во колаче - по уред, не по човек. Тоа значеше дека
-двајца на ист компјутер делат една листа, а еден човек со телефон и со
-компјутер има две. Сметката го врзува изборот за човекот.
+Изборот досега живееше во колаче - по уред, не по човек. Двајца на ист
+компјутер делеа една листа, а еден човек со телефон и со компјутер имаше
+две. Сметката го врзува изборот за човекот.
 
-Што НЕ се бара: е-пошта, име, ништо. Корисничко име и лозинка. Е-поштата
-бара услуга за испраќање пораки (потврда, заборавена лозинка) - уште една
-зависност што се расипува, за корист што сега ја нема.
+**Нема лозинки.** Сметката се отвора со корисничко име и адреса; влегувањето
+оди преку линк што стигнува на таа адреса. Истиот механизам и за првата
+потврда и за секоја следна најава, па нема што да се заборави, нема што да
+се краде од базата, и нема „заборавена лозинка".
+
+Цената: без пошта никој не може да влезе. Затоа `app.core.config` не
+дозволува production без наместен SMTP, а `python -m app.cli vlez` дава
+рачен пат кога поштата ќе падне.
 """
 
 from __future__ import annotations
 
 import re
+import secrets
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, select
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+from sqlalchemy import delete, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.catalog.picks import Pick
-from app.core.security import (
-    MIN_PASSWORD_LENGTH,
-    hash_password,
-    needs_rehash,
-    verify_password,
-)
+from app.core.config import get_settings
 from app.models import City, User, UserPick
+from app.services.mail import clean_email
 
 # Букви, бројки, точка, долна црта и цртичка. Без празни места и без
 # кирилица: корисничкото име се пишува често и на телефон, а мешањето
@@ -51,51 +54,91 @@ def check_username(value: str) -> str:
     return name
 
 
-def check_password(value: str) -> str:
-    if len(value) < MIN_PASSWORD_LENGTH:
-        raise AccountError(
-            f"Лозинката мора да има најмалку {MIN_PASSWORD_LENGTH} знаци."
-        )
-    return value
+def check_email(value: str) -> str:
+    address = clean_email(value)
+    if address is None:
+        raise AccountError("Тоа не личи на адреса за е-пошта. Провери уште еднаш.")
+    return address
 
 
-async def register(session: AsyncSession, username: str, password: str) -> User:
-    """Нова сметка. Фрла `AccountError` со порака за екран."""
+async def register(session: AsyncSession, username: str, email: str) -> User:
+    """Нова сметка, непотврдена. Фрла `AccountError` со порака за екран."""
     name = check_username(username)
-    check_password(password)
+    address = check_email(email)
 
     taken = await session.scalar(select(User.id).where(User.username == name))
     if taken is not None:
         raise AccountError("Тоа корисничко име е зафатено. Пробај друго.")
 
-    user = User(username=name, password_hash=hash_password(password))
+    used = await session.scalar(select(User.id).where(User.email == address))
+    if used is not None:
+        raise AccountError(
+            "На таа адреса веќе има сметка. Побарај линк за влез наместо нова."
+        )
+
+    user = User(username=name, email=address)
     session.add(user)
     await session.flush()
     return user
 
 
-async def authenticate(
-    session: AsyncSession, username: str, password: str
-) -> User | None:
-    """Корисникот ако лозинката чини, инаку `None`.
+async def find_by_login(session: AsyncSession, text: str) -> User | None:
+    """Сметката по адреса или по корисничко име - човекот пишува што памети."""
+    typed = text.strip().lower()
+    if not typed:
+        return None
+    return await session.scalar(
+        select(User).where(or_(User.email == typed, User.username == typed))
+    )
 
-    Нема разлика во одговорот меѓу „го нема тоа име" и „погрешна лозинка":
-    таа разлика кажува кои имиња постојат.
+
+# ==========================================================================
+# Влез со линк
+# ==========================================================================
+def _signer() -> URLSafeTimedSerializer:
+    # Солта го врзува потписот за оваа намена: потпис од сесија не смее да
+    # важи како линк за влез.
+    return URLSafeTimedSerializer(get_settings().secret_key, salt="vlez")
+
+
+async def issue_login_code(session: AsyncSession, user: User) -> str:
+    """Нов еднократен линк за таа сметка.
+
+    Кодот се чува кај корисникот, а потписот го носи. Со тоа линкот важи
+    еднаш, а нов линк го поништува претходниот - старото писмо во сандачето
+    престанува да отвора врата.
     """
-    name = normalise_username(username)
-    user = await session.scalar(select(User).where(User.username == name))
-    if user is None or not user.is_active:
-        # Се троши исто време како при вистинска проверка, за да одговорот
-        # не каже дали името постои.
-        verify_password(password, hash_password("празно"))
+    user.login_code = secrets.token_urlsafe(16)
+    await session.flush()
+    return _signer().dumps({"id": user.id, "code": user.login_code})
+
+
+async def redeem_login_code(session: AsyncSession, token: str) -> User | None:
+    """Корисникот ако линкот чини, инаку `None`.
+
+    Истиот линк ја потврдува адресата и влегува: ако писмото стигнало и
+    некој кликнал, адресата постои - друга проверка не ни треба.
+    """
+    minutes = get_settings().mail_link_minutes
+    try:
+        payload = _signer().loads(token, max_age=minutes * 60)
+    except (SignatureExpired, BadSignature):
+        return None
+    if not isinstance(payload, dict):
         return None
 
-    if not verify_password(password, user.password_hash):
+    user = await session.get(User, payload.get("id"))
+    if user is None or not user.is_active or not user.login_code:
+        return None
+    # Константно споредување: кодот е тајна како и лозинка.
+    if not secrets.compare_digest(user.login_code, str(payload.get("code", ""))):
         return None
 
-    if needs_rehash(user.password_hash):
-        user.password_hash = hash_password(password)
+    user.login_code = None
+    if user.email_confirmed_at is None:
+        user.email_confirmed_at = datetime.now(UTC)
     user.last_login_at = datetime.now(UTC)
+    await session.flush()
     return user
 
 
@@ -160,13 +203,15 @@ async def city_of(session: AsyncSession, user: User) -> str:
 
 __all__ = [
     "AccountError",
-    "authenticate",
-    "check_password",
+    "check_email",
     "check_username",
     "city_of",
+    "find_by_login",
     "get_user",
+    "issue_login_code",
     "load_picks",
     "normalise_username",
+    "redeem_login_code",
     "register",
     "save_picks",
     "set_city",

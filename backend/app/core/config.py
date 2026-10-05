@@ -54,6 +54,41 @@ class Settings(BaseSettings):
     scraper_max_retries: int = Field(default=3, ge=0)
     scraper_timeout_seconds: float = Field(default=30.0, gt=0)
 
+    # ---- Пошта (потврда на адреса и најава со линк) ----
+    # Празен сервер значи дека поштата НЕ се испраќа: линкот се запишува во
+    # дневникот. Така локалното тестирање не зависи од сервис за пошта, а
+    # на production празниот сервер се одбива (види подолу).
+    smtp_host: str = ""
+    smtp_port: int = Field(default=465, ge=1, le=65535)
+    smtp_user: str = ""
+    smtp_password: str = ""
+    # Што гледа примачот во полето „Од".
+    smtp_from: str = "DARBOX Marketchecker <info@darbo.mk>"
+    # Портот 465 носи TLS од првиот бајт; 587 почнува отворено и се крева
+    # со STARTTLS. Погрешен избор дава врска што виси, не јасна грешка.
+    smtp_ssl: bool = True
+    # Проверка на сертификатот на поштенскиот сервер. Се гаси САМО кога
+    # хостингот нуди сертификат на друго име од тоа на кое се поврзуваме -
+    # чест случај кај споделен хостинг. Тогаш врската е и натаму шифрирана,
+    # но не се потврдува дека серверот е тој за кој се претставува.
+    smtp_verify: bool = True
+    # Колку се чека серверот за пошта. Испраќањето е внатре во барањето за
+    # да може страницата искрено да каже „писмото не тргна" - затоа не смее
+    # да чека долго.
+    smtp_timeout: float = Field(default=15.0, gt=0, le=60)
+
+    # Колку трае линкот од поштата. Подолго е поудобно, пократко е побезбедно;
+    # еден час е доволен за некој да ја отвори поштата.
+    mail_link_minutes: int = Field(default=60, ge=5, le=1440)
+
+    # Колку трае најавата пред повторно да се бара линк. Без лозинка,
+    # честата најава значи честа посета на поштата - затоа долго.
+    session_days: int = Field(default=90, ge=1, le=365)
+
+    # Адресата на која апликацијата е достапна. Влегува во линковите што
+    # одат по пошта: тие се отвораат на друг уред, па „localhost" не чини.
+    public_url: str = "http://localhost:8000"
+
     # ---- Дневно закажување ----
     scheduler_enabled: bool = True
     scheduler_timezone: str = "Europe/Skopje"
@@ -118,6 +153,15 @@ class Settings(BaseSettings):
                 + ". Генерирај со: "
                 'python -c "import secrets; print(secrets.token_urlsafe(48))"'
             )
+
+        # Без пошта на сервер нема ни најава: сметката се активира и се
+        # отвора само преку линк. Подобро да не стартува отколку луѓето да
+        # останат заклучени надвор.
+        if not self.smtp_host:
+            raise ValueError(
+                "SMTP_HOST мора да биде поставен на production: без пошта "
+                "никој не може да се најави."
+            )
         return self
 
     @property
@@ -145,6 +189,15 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    @property
+    def mail_enabled(self) -> bool:
+        """Дали поштата навистина се испраќа.
+
+        Кога не е наместена, линковите одат во дневникот - локалното
+        тестирање не смее да зависи од сервис за пошта.
+        """
+        return bool(self.smtp_host)
 
 
 @lru_cache

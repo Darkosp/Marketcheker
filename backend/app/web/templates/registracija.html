@@ -28,28 +28,27 @@
       </label>
 
       <label class="field">
-        <span class="field-label">Лозинка</span>
-        <input class="auth-input" type="password" name="lozinka"
-               autocomplete="new-password" required minlength="8">
-        <span class="auth-hint">Најмалку 8 знаци.</span>
-      </label>
-
-      <label class="field">
-        <span class="field-label">Лозинка уште еднаш</span>
-        <input class="auth-input" type="password" name="lozinka_pak"
-               autocomplete="new-password" required minlength="8">
+        <span class="field-label">Е-пошта</span>
+        <input class="auth-input" type="email" name="posta" value="{{ posta|default('') }}"
+               autocomplete="email" autocapitalize="none" spellcheck="false"
+               inputmode="email" required>
+        <span class="auth-hint">
+          Тука ќе ти стигне линк за потврда. Без потврда сметката не е активна.
+        </span>
       </label>
 
       <button class="btn auth-submit" type="submit">Направи сметка</button>
     </form>
 
     <p class="auth-switch">
-      Веќе имаш сметка? <a href="/najava">Најави се</a>
+      Веќе имаш сметка? <a href="/najava">Влези</a>
     </p>
 
     <p class="auth-note">
-      Не бараме е-пошта, ниту име. Само корисничко име и лозинка. Сметката
-      чува едно нешто: кои производи ги следиш и во кој град.
+      <strong>Нема лозинка.</strong> Секој влез оди преку линк што стигнува
+      на твојата адреса — нема што да заборавиш и нема што да се украде.
+      Не бараме име, презиме, ниту број. Сметката чува едно нешто: кои
+      производи ги следиш и во кој град.
     </p>
 
   </main>

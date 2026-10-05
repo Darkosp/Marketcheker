@@ -54,6 +54,11 @@ def _parse(argv: list[str]) -> argparse.Namespace:
 
     sub.add_parser("isчisti", help="избриши историја постара од две години")
 
+    entry = sub.add_parser(
+        "vlez", help="рачен линк за влез, кога поштата не работи"
+    )
+    entry.add_argument("kogo", help="корисничко име или адреса")
+
     return parser.parse_args(argv)
 
 
@@ -154,6 +159,33 @@ async def _cleanup() -> int:
     return 0
 
 
+async def _entry(args: argparse.Namespace) -> int:
+    """Линк за влез испечатен во терминал, без пошта.
+
+    Без лозинки, поштата е единствената врата. Ако падне - сервер за пошта
+    надвор од строј, писмо во спам, адреса напишана погрешно - никој не може
+    да влезе. Ова е резервниот клуч, достапен само на машината.
+    """
+    from app.core.config import get_settings
+    from app.services import accounts
+
+    async with SessionLocal() as session:
+        user = await accounts.find_by_login(session, args.kogo)
+        if user is None:
+            print(f"Нема сметка за {args.kogo!r}.")
+            return 1
+
+        token = await accounts.issue_login_code(session, user)
+        await session.commit()
+
+    settings = get_settings()
+    print(f"Сметка: {user.username} <{user.email or 'без адреса'}>")
+    print(f"Линкот важи {settings.mail_link_minutes} минути и отвора еднаш:")
+    print()
+    print(f"  {settings.public_url.rstrip('/')}/vlez?t={token}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse(argv if argv is not None else sys.argv[1:])
     setup_logging(get_settings().log_level)
@@ -167,6 +199,8 @@ def main(argv: list[str] | None = None) -> int:
                     return await _stats(args)
                 case "isчisti":
                     return await _cleanup()
+                case "vlez":
+                    return await _entry(args)
                 case _:
                     return await _report(args)
         finally:

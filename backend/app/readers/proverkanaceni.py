@@ -28,7 +28,11 @@ from __future__ import annotations
 
 from typing import ClassVar
 
-from selectolax.parser import HTMLParser, Node
+# Lexbor наместо Modest: Modest е отстранет во selectolax 1.0.
+# API-то е исто за css()/text()/attributes, па парсирањето не се менува -
+# тоа го потврдуваат тестовите врз зачуваните ценовници.
+from selectolax.lexbor import LexborHTMLParser as HTMLParser
+from selectolax.lexbor import LexborNode as Node
 
 from app.catalog.geo import find_city_in
 from app.core.logging import get_logger
