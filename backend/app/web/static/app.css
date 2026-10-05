@@ -1057,3 +1057,93 @@ select:focus-visible,
 
 .why { margin: 0 0 18px; padding-left: 20px; font-size: 0.9rem; line-height: 1.7; }
 .why strong { color: var(--text); }
+
+
+/* ======================= пребарување ======================= */
+.find { display: grid; gap: 16px; }
+
+.find-bar { display: flex; gap: 8px; }
+
+.find-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 48px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 1.05rem;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.find-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.find-help, .hit-note { margin: 0; font-size: 0.88rem; line-height: 1.6; color: var(--muted); }
+
+.hit {
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.hit-category { border-color: var(--accent); }
+
+.hit-kind {
+  margin: 0 0 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.hit-category .hit-kind { color: var(--accent); }
+
+.hit-name { margin: 0 0 4px; font-size: 1.05rem; font-weight: 650; line-height: 1.4; }
+.hit-count { margin: 0; font-size: 0.85rem; color: var(--muted); }
+
+.hit-examples {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 0.82rem;
+  line-height: 1.7;
+  color: var(--text-soft);
+}
+
+.hit-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 0; }
+.hit-narrow .terms { margin-top: 10px; }
+
+.find-none { padding: 24px 16px; text-align: center; }
+.find-none h2 { margin: 0 0 10px; font-size: 1.1rem; }
+.find-none p { margin: 0 0 10px; font-size: 0.9rem; line-height: 1.7; color: var(--muted); }
+
+.find-back {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.find-mine { color: var(--muted); }
+
+.find-open {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-soft);
+  text-decoration: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.find-open:hover { border-color: var(--accent); color: var(--text); }
+.find-open strong { color: var(--accent); font-weight: 600; }
+.find-open-icon { flex: none; font-size: 1.3rem; line-height: 1; color: var(--accent); }

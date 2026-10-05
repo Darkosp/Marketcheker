@@ -38,6 +38,7 @@ from app.services.discounts import (
     run_summary,
 )
 from app.services.ingest import today_local
+from app.services.search import understand
 from app.services.stats import (
     chain_stats,
     latest_stats_date,
@@ -447,6 +448,64 @@ async def selection_page(
         "link": _linker(chosen, grad),
     }
     return templates.TemplateResponse(request, "izbor.html", context)
+
+
+@router.get("/najdi", response_class=HTMLResponse, summary="Најди производ")
+async def search_page(
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+    q: str = "",
+    izbor: list[str] | None = Query(default=None),
+    grad: str | None = None,
+) -> HTMLResponse:
+    """Пишување наместо кликање низ нивоата.
+
+    Истата страница одговара на трите случаи, бидејќи разликата меѓу нив е
+    само во бројки:
+
+        „кафе"              широко → нуди категорија и зборови за стеснување
+        „кафе инстант"      потесно → пак нуди
+        „зејтин брилијант"  3 производи → тоа е изборот
+
+    Стеснувањето е уште еден збор во истото поле, не друг механизам.
+    """
+    if user is not None:
+        remembered = await accounts.load_picks(session, user)
+    else:
+        remembered = _cookie_keys(request)
+    chosen, _ = selection.choose(izbor, remembered)
+    grad = grad or ""
+
+    found = await understand(session, q) if q.strip() else None
+
+    def link(add: str | None = None, narrow: str | None = None) -> str:
+        """Врска што ја носи целата листа со себе."""
+        keys = [pick.key for pick in chosen]
+        if add and add not in keys:
+            keys.append(add)
+        after = selection.normalise(keys)
+
+        if narrow is not None:
+            parts = [("q", narrow), *[("izbor", p.key) for p in after]]
+            if not after:
+                parts.append(("izbor", ""))
+            if grad:
+                parts.append(("grad", grad))
+            return "/najdi?" + urlencode(parts)
+        return _izbor_url(after, None, grad or None)
+
+    context = {
+        "title": f"Најди: {q}" if q.strip() else "Најди производ",
+        "user": user,
+        "q": q.strip(),
+        "found": found,
+        "chosen": chosen,
+        "chosen_keys": {pick.key for pick in chosen},
+        "selected": {"grad": grad},
+        "link": link,
+    }
+    return templates.TemplateResponse(request, "najdi.html", context)
 
 
 @router.get("/sostojba", response_class=HTMLResponse, summary="Состојба на читањата")

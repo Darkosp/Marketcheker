@@ -9,6 +9,14 @@
    и колачето да не го враќа избришаното. #}
 <input type="hidden" name="izbor" value="">
 
+{# Пишувањето е прво: човекот што знае што бара не треба да лази низ
+   нивоа. Формуларот е ОДДЕЛЕН од филтрите - своја акција, свој метод. #}
+<a class="find-open" href="/najdi{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">
+  <span class="find-open-icon" aria-hidden="true">⌕</span>
+  Најди производ или бренд — <strong>нескафе</strong>, <strong>компир</strong>,
+  <strong>зејтин брилијант</strong>
+</a>
+
 <div class="picked">
   {% if chosen %}
     <span class="picked-label">Следиш:</span>

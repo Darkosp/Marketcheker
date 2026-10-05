@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{# Пишување наместо кликање низ нивоата.
+
+   Истата страница одговара на трите случаи, бидејќи разликата меѓу нив е
+   само во бројки: колку производи фаќа напишаното, и дали постои
+   категорија со такво име. Затоа тука нема три различни облика - има еден,
+   што покажува повеќе или помалку. #}
+
+{% block body %}
+<div class="layout layout-single">
+  <main class="content find">
+
+    <form class="find-bar" method="get" action="/najdi">
+      {% for pick in chosen %}
+        <input type="hidden" name="izbor" value="{{ pick.key }}">
+      {% endfor %}
+      <input type="hidden" name="izbor" value="">
+      {% if selected.grad %}
+        <input type="hidden" name="grad" value="{{ selected.grad }}">
+      {% endif %}
+      <input class="find-input" type="search" name="q" value="{{ q }}"
+             placeholder="кафе, нескафе, зејтин брилијант…"
+             autocomplete="off" autofocus>
+      <button class="btn" type="submit">Најди</button>
+    </form>
+
+    {% if not q %}
+      <p class="find-help">
+        Напиши што бараш. Ако е широко како <strong>кафе</strong>, ќе ти
+        понудам со што да стесниш. Ако е точно како
+        <strong>зејтин брилијант</strong>, веднаш е готово.
+      </p>
+
+    {% elif not found.found_anything %}
+      <section class="find-none">
+        <h2>Нема ништо со „{{ q }}"</h2>
+        <p>
+          Производите се запишани онака како што пишуваат во ценовниците —
+          на кирилица, и понекогаш поинаку од тоа што го велиме дома.
+          За масло пишува <strong>масло</strong>, не „зејтин“.
+        </p>
+        <p><a href="/izbor">Или избери од списокот категории →</a></p>
+      </section>
+
+    {% else %}
+      {# ---- категорија со такво име ---- #}
+      {% for hit in found.categories %}
+        <section class="hit hit-category">
+          <p class="hit-kind">Категорија</p>
+          <h2 class="hit-name">{{ hit.name }}</h2>
+          <p class="hit-count">{{ hit.products|broj }} производи</p>
+          <p class="hit-actions">
+            <a class="btn" href="{{ link(add=hit.slug) }}">Следи ја целата</a>
+            <a class="btn btn-ghost" href="/izbor?otvori={{ hit.slug }}">
+              Отвори и избери поточно
+            </a>
+          </p>
+        </section>
+      {% endfor %}
+
+      {# ---- напишаното како избор по назив ---- #}
+      <section class="hit">
+        <p class="hit-kind">По назив</p>
+        <h2 class="hit-name">
+          {{ found.products|broj }}
+          {% if found.products == 1 %}производ{% else %}производи{% endif %}
+          со „{{ found.text }}" во името
+        </h2>
+
+        {% if found.examples %}
+          <ul class="hit-examples">
+            {% for name in found.examples %}<li>{{ name }}</li>{% endfor %}
+          </ul>
+        {% endif %}
+
+        {% if found.products %}
+          <p class="hit-actions">
+            <a class="btn{% if found.is_wide %} btn-ghost{% endif %}"
+               href="{{ link(add=found.as_pick.key) }}">
+              {% if found.is_wide %}Следи ги сепак сите{% else %}Следи ги{% endif %}
+            </a>
+          </p>
+        {% endif %}
+      </section>
+
+      {# ---- стеснување: уште еден збор во истото поле ---- #}
+      {% if found.narrowing %}
+        <section class="hit hit-narrow">
+          <p class="hit-kind">Стесни уште</p>
+          <p class="hit-note">
+            Зборовите се од <strong>вистинските називи</strong> на тие
+            {{ found.products|broj }} производи.
+          </p>
+          <div class="terms">
+            {% for word in found.narrowing %}
+              <a class="term" href="{{ link(narrow=found.plus(word)) }}">{{ word }}</a>
+            {% endfor %}
+          </div>
+        </section>
+      {% endif %}
+    {% endif %}
+
+    <p class="find-back">
+      <a href="/izbor">← назад на изборот</a>
+      {% if chosen %}<span class="find-mine">во листата: {{ chosen|length }}</span>{% endif %}
+    </p>
+
+  </main>
+</div>
+{% endblock %}

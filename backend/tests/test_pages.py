@@ -407,3 +407,60 @@ async def test_city_name_is_shown_next_to_the_market_label(
 
 async def test_no_city_means_no_hint(client: AsyncClient) -> None:
     assert "field-hint" not in (await client.get("/")).text
+
+
+# ==========================================================================
+# Страницата за пишување
+# ==========================================================================
+@pytest.mark.parametrize(
+    "query",
+    ["", "?q=", "?q=кафе", "?q=нема-вакво", "?q=%25", "?q=кафе&izbor=masla", "?q=a"],
+)
+async def test_the_search_page_never_returns_validation_error(
+    client: AsyncClient, query: str
+) -> None:
+    assert (await client.get(f"/najdi{query}")).status_code == 200
+
+
+async def test_a_wide_word_offers_a_way_to_narrow(client: AsyncClient) -> None:
+    html = (await client.get("/najdi?q=кафе")).text
+    assert "Стесни уште" in html
+    assert "НЕСКАФЕ" in html
+
+
+async def test_a_wide_word_also_offers_the_category(client: AsyncClient) -> None:
+    html = (await client.get("/najdi?q=кафе")).text
+    assert "Следи ја целата" in html
+    assert "otvori=kafe" in html
+
+
+async def test_a_precise_phrase_is_offered_as_a_finished_choice(
+    client: AsyncClient,
+) -> None:
+    """Тоа што го бараше корисникот: „зејтин брилијант" веднаш е готово."""
+    html = (await client.get("/najdi?q=зејтин+брилијант")).text
+    assert "Следи ги" in html
+    assert "Стесни уште" not in html
+
+
+async def test_narrowing_keeps_the_previous_words(client: AsyncClient) -> None:
+    html = (await client.get("/najdi?q=кафе")).text
+    assert "q=%D0%BA%D0%B0%D1%84%D0%B5+" in html or "q=кафе+" in html
+
+
+async def test_the_search_keeps_the_list(client: AsyncClient) -> None:
+    html = (await client.get("/najdi?q=кафе&izbor=masla")).text
+    assert "izbor=masla" in html
+
+
+async def test_nothing_found_explains_why(client: AsyncClient) -> None:
+    html = (await client.get("/najdi?q=нештоштонепостои")).text
+    assert "Нема ништо" in html
+
+
+async def test_the_main_page_offers_the_search(client: AsyncClient) -> None:
+    assert 'href="/najdi' in (await client.get("/")).text
+
+
+async def test_the_picker_offers_the_search_too(client: AsyncClient) -> None:
+    assert 'href="/najdi' in (await client.get("/izbor")).text
