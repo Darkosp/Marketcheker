@@ -88,11 +88,11 @@ def _sent_page(
 
 
 def _forget_cookies(response: Response) -> None:
-    """Колачињата повеќе не одлучуваат ништо - листата е на сметката.
+    """Градот не смее да остане на уредот по одјава.
 
-    Ако останеа, по одјава би се вратил туѓ избор на истиот уред.
+    Листата и така е на сметката; градот е филтер, но е туѓ избор - следниот
+    човек на истиот компјутер не смее да го наследи.
     """
-    response.delete_cookie(selection.COOKIE_NAME, path="/")
     response.delete_cookie(selection.CITY_COOKIE, path="/")
 
 
@@ -176,24 +176,14 @@ async def login(
 async def _start_session(
     request: Request, session: SessionDep, user: User
 ) -> bool:
-    """Го памети корисникот и го презема изборот од колачето, ако треба.
+    """Го памети корисникот. Враќа дали листата е сè уште празна.
 
-    Враќа дали листата е сè уште празна - тогаш следниот чекор е изборот,
-    не списокот со сите попусти.
-
-    Некој пробал без сметка, одбрал неколку производи, па отворил сметка.
-    Тој избор не смее да исчезне - но ниту смее да прегази листа што веќе
-    постои на сметката.
+    Празна листа значи дека следниот чекор е изборот, не списокот со сите
+    попусти - нова сметка нема што да ѝ се прикаже.
     """
     empty = not await accounts.load_picks(session, user)
     request.session.clear()  # нов идентитет, стара сесија не се надградува
     request.session[SESSION_KEY] = user.id
-
-    if empty:
-        from_cookie = selection.from_cookie(request.cookies.get(selection.COOKIE_NAME))
-        if from_cookie:
-            await accounts.save_picks(session, user, from_cookie)
-            empty = False
     return empty
 
 

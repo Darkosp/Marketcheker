@@ -1,7 +1,7 @@
 {# Првото нешто што го гледа човек без сметка.
 
-   Список од шест илјади попусти не му кажува ништо. Бројка што ја
-   препознава - колку чини маслото, колку детергентот - кажува.
+   Водечкиот број е целата порака: список од шест илјади попусти не кажува
+   ништо, а „2.235 денари на десет обични работи" кажува сè.
 
    Примерите се НАЈДОБРИТЕ од последниот месец, не денешните, и секој го
    носи датумот на кој бил. Денес маслото можеби нема попуст, а примерот
@@ -9,33 +9,43 @@
    стари цени како денешни го губи човекот еднаш засекогаш. #}
 
 <section class="hero">
-  <h2 class="hero-title">
+  {% if highlight_total %}
+    <p class="hero-kicker">Изминатиов месец, на десет обични работи</p>
+    <p class="hero-number">
+      {{ highlight_total|round(0, "floor")|int|broj }}<span>ден</span>
+    </p>
+    <p class="hero-claim">толку вредеа попустите</p>
+  {% endif %}
+
+  <p class="hero-sub">
     Секој ден ги читаме ценовниците на
     <strong>{{ scale.chains }} маркети</strong> и
     <strong>{{ scale.stores|broj }} продавници</strong>.
-  </h2>
-  <p class="hero-sub">
     Ти само гледаш што е на попуст — и колку пари остануваат во џеб.
   </p>
+
   <p class="hero-actions">
-    <a class="btn" href="/registracija">Направи своја листа</a>
-    <a class="btn btn-ghost" href="#rezultati">Види ги сите денешни попусти</a>
+    <a class="btn btn-big" href="/registracija">Направи своја листа</a>
+    <a class="btn btn-ghost btn-big" href="#rezultati">Види ги денешните попусти</a>
   </p>
 </section>
 
 {% if highlights %}
   <section class="saves">
-    <h2 class="saves-title">Колку се заштедува</h2>
-    <p class="saves-note">
-      Најдобрите попусти од изминатиов месец на десетте работи што сите ги
-      купуваме. Секој со денот кога бил.
-    </p>
+    <div class="saves-head">
+      <h2 class="saves-title">Од што е составена таа сметка</h2>
+      <p class="saves-note">
+        Најдобриот попуст што го имало секое од нив, и денот кога бил.
+      </p>
+    </div>
 
     <ul class="saves-list">
       {% for item in highlights %}
         <li class="save">
+          <span class="save-much">
+            −{{ item.savings|round(0, "floor")|int }}<small>ден</small>
+          </span>
           <span class="save-what">{{ item.label }}</span>
-          <span class="save-much">−{{ item.savings|round(0, "floor")|int }} <small>ден</small></span>
           <span class="save-which">{{ item.product_name }}</span>
           <span class="save-when">
             {{ item.chain_name }} · {{ item.seen_on.strftime("%d.%m") }}
@@ -44,21 +54,13 @@
       {% endfor %}
     </ul>
 
-    <p class="saves-total">
-      Сето ова заедно:
-      <strong>{{ highlight_total|round(0, "floor")|int|broj }} денари</strong>
-      на една кошничка.
-    </p>
-
     <div class="saves-truth">
+      <p class="saves-truth-lead">Ова е пример, не денешна понуда.</p>
       <p>
-        <strong>Ова е пример, не денешна понуда.</strong> Попустите се
-        менуваат секој ден и овие веројатно веќе ги нема.
-      </p>
-      <p>
-        За да ги видиш <strong>денешните</strong> попусти токму на тоа што ти
-        го купуваш, направи своја листа — кафето што го пиеш, маслото што го
-        земаш. Потоа секое отворање ти ги покажува само нив.
+        Попустите се менуваат секој ден и овие веројатно веќе ги нема. За да
+        ги видиш <strong>денешните</strong> попусти токму на тоа што ти го
+        купуваш — кафето што го пиеш, маслото што го земаш — направи своја
+        листа. Потоа секое отворање ти ги покажува само нив.
       </p>
       <p class="hero-actions">
         <a class="btn" href="/registracija">Направи сметка — една минута</a>

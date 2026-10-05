@@ -30,6 +30,12 @@
 
   <main class="content">
 
+    {# За посетител, првото нешто е зошто ова вреди - не техничка белешка
+       за кое читање поминало. Белешката останува, но под неа. #}
+    {% if highlights is defined %}
+      {% include "partials/landing.html" %}
+    {% endif %}
+
     <section class="page-head">
       <h1>Денешни попусти</h1>
       {% if is_stale %}
@@ -42,10 +48,6 @@
         <p class="subtitle">{{ run_date.strftime("%d.%m.%Y") }}</p>
       {% endif %}
     </section>
-
-    {% if highlights is defined %}
-      {% include "partials/landing.html" %}
-    {% endif %}
 
     {% include "partials/selection_bar.html" %}
 

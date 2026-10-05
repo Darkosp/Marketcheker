@@ -11,7 +11,9 @@
 
 {# Пишувањето е прво: човекот што знае што бара не треба да лази низ
    нивоа. Формуларот е ОДДЕЛЕН од филтрите - своја акција, свој метод. #}
-<a class="find-open" href="/najdi{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">
+{# Следењето бара сметка, па за посетител линкот води таму - не кон
+   страница што само ќе го пренасочи. #}
+<a class="find-open" href="{% if user %}/najdi{% if selected.grad %}?grad={{ selected.grad }}{% endif %}{% else %}/registracija{% endif %}">
   <span class="find-open-icon" aria-hidden="true">⌕</span>
   <span class="find-open-text">Најди производ или бренд</span>
   <span class="find-open-eg">нескафе · компир · зејтин брилијант</span>
@@ -29,9 +31,12 @@
     </span>
     <a class="picked-edit" href="/izbor{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">промени</a>
     <a class="picked-clear" href="/?izbor=">сите производи</a>
-  {% else %}
+  {% elif user %}
     <span class="picked-list">Се прикажуваат сите денешни попусти.</span>
     <a class="picked-edit" href="/izbor{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">избери што следиш</a>
+  {% else %}
+    <span class="picked-list">Се прикажуваат сите денешни попусти.</span>
+    <a class="picked-edit" href="/registracija">направи листа со свои производи</a>
   {% endif %}
 </div>
 

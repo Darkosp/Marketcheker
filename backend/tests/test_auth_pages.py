@@ -210,31 +210,34 @@ async def test_logout_needs_a_post(db_client: AsyncClient) -> None:
 # ==========================================================================
 # Листата оди на човекот
 # ==========================================================================
-async def test_a_choice_made_before_registering_is_kept(
+async def test_choosing_needs_an_account(db_client: AsyncClient) -> None:
+    """Листата живее на сметката: без неа нема каде да се зачува."""
+    for path in ("/izbor", "/najdi?q=кафе"):
+        response = await db_client.get(path, follow_redirects=False)
+        assert response.status_code == 303, path
+        assert response.headers["location"] == "/registracija", path
+
+
+async def test_a_visitor_cannot_follow_anything_through_the_url(
     db_client: AsyncClient,
 ) -> None:
-    """Некој пробал без сметка, одбрал неколку работи, па отворил сметка."""
-    await db_client.get("/?izbor=kafe~нескафе")
-    await _sign_up(db_client)
-    assert "Кафе · нескафе" in (await db_client.get("/")).text
+    """Ни со рачно напишан линк - нема каде да се зачува."""
+    html = (await db_client.get("/?izbor=kafe")).text
+    assert "Следиш:" not in html
 
 
-async def test_a_choice_made_before_does_not_overwrite_an_existing_list(
+async def test_the_list_comes_back_after_signing_in_again(
     db_client: AsyncClient,
 ) -> None:
     await _sign_up(db_client)
     await db_client.get("/?izbor=masla")
     await db_client.post("/odjava", follow_redirects=False)
+    assert "Следиш:" not in (await db_client.get("/")).text
 
-    # Друг избор на истиот уред, потоа повторен влез.
-    await db_client.get("/?izbor=pelenki")
     await db_client.post(
         "/najava", data={"posta": POSTA}, follow_redirects=False
     )
-
-    html = (await db_client.get("/")).text
-    assert "Масла и масти" in html
-    assert "Пелени" not in html
+    assert "Масла и масти" in (await db_client.get("/")).text
 
 
 async def test_the_list_follows_the_person_not_the_device(
@@ -249,10 +252,9 @@ async def test_the_list_follows_the_person_not_the_device(
     assert "Следиш:" not in (await db_client.get("/")).text
 
 
-async def test_two_people_on_one_browser_keep_separate_lists(
+async def test_two_people_on_one_browser_do_not_mix(
     db_client: AsyncClient,
 ) -> None:
-    """Токму ова колачето не можеше да го направи."""
     await _sign_up(db_client, "prviot@primer.mk")
     await db_client.get("/?izbor=kafe")
     await db_client.post("/odjava", follow_redirects=False)
@@ -261,7 +263,7 @@ async def test_two_people_on_one_browser_keep_separate_lists(
     await db_client.get("/?izbor=pelenki")
     html = (await db_client.get("/")).text
     assert "Пелени и марамици" in html
-    assert "Кафе ·" not in html
+    assert "Кафе" not in html
 
 
 async def test_an_empty_list_is_invited_to_be_filled(

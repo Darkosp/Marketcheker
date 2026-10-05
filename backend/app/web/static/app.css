@@ -965,7 +965,21 @@ select:focus-visible,
 
 .topnav-out button:hover { color: var(--accent); }
 
-.auth { max-width: 420px; }
+/* Формата е кратка, а страницата висока: без ова стои залепена горе-лево
+   со празнина под себе. На телефон тоа изгледа како недовршена страница. */
+.layout-middle {
+  display: grid;
+  place-items: center;
+  min-height: calc(100vh - 190px);
+}
+
+.auth {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.auth .page-head { text-align: center; }
 
 .auth-form {
   display: grid;
@@ -1207,46 +1221,79 @@ select:focus-visible,
 
 
 /* ======================= почетна за посетител ======================= */
+/* Водечкиот број е целата порака. Список од шест илјади попусти не кажува
+   ништо; „2.235 денари на десет обични работи" кажува сè. */
 .hero {
-  padding: 28px 20px;
+  padding: 36px 20px 32px;
   text-align: center;
-  background: linear-gradient(180deg, var(--accent-soft), var(--surface));
+  background:
+    radial-gradient(120% 90% at 50% 0%, var(--accent-soft), transparent 70%),
+    var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
 }
 
-.hero-title {
-  margin: 0 auto 8px;
-  max-width: 24ch;
-  font-size: 1.35rem;
-  font-weight: 650;
-  line-height: 1.35;
-  letter-spacing: -0.02em;
+.hero-kicker {
+  margin: 0 auto 6px;
+  max-width: 28ch;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
-.hero-title strong { color: var(--accent); font-weight: 750; white-space: nowrap; }
+.hero-number {
+  margin: 0;
+  font-size: clamp(3rem, 16vw, 4.6rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.045em;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
 
-.hero-sub {
-  margin: 0 auto;
-  max-width: 34ch;
-  font-size: 0.95rem;
-  line-height: 1.6;
+.hero-number span {
+  margin-left: 6px;
+  font-size: 0.26em;
+  font-weight: 650;
+  letter-spacing: 0;
   color: var(--text-soft);
 }
+
+.hero-claim {
+  margin: 6px 0 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.hero-sub {
+  margin: 18px auto 0;
+  max-width: 42ch;
+  font-size: 0.95rem;
+  line-height: 1.65;
+  color: var(--text-soft);
+}
+
+.hero-sub strong { color: var(--text); font-weight: 650; white-space: nowrap; }
 
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
   justify-content: center;
-  margin: 20px 0 0;
+  margin: 24px 0 0;
 }
 
-/* ---- колку се заштедува ---- */
-.saves { display: grid; gap: 12px; }
+.btn-big { min-height: 48px; padding: 0 22px; font-size: 0.95rem; }
+
+/* ---- од што е составена сметката ---- */
+.saves { display: grid; gap: 14px; }
+.saves-head { text-align: center; }
 
 .saves-title {
-  margin: 8px 0 0;
+  margin: 10px 0 4px;
   font-size: 1.15rem;
   font-weight: 650;
   letter-spacing: -0.01em;
@@ -1262,31 +1309,34 @@ select:focus-visible,
   list-style: none;
 }
 
+/* Бројот оди ПРВ и лево: окото го бара него, не името. */
 .save {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 2px 12px;
-  padding: 12px 14px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: baseline;
+  gap: 2px 14px;
+  padding: 13px 15px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
 
-.save-what { font-size: 0.95rem; font-weight: 650; }
-
 .save-much {
   grid-row: span 3;
   align-self: center;
-  font-size: 1.25rem;
-  font-weight: 700;
+  min-width: 4.6ch;
+  font-size: 1.35rem;
+  font-weight: 750;
   color: var(--sale);
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
   white-space: nowrap;
 }
 
-.save-much small { font-size: 0.58em; font-weight: 600; }
+.save-much small { margin-left: 2px; font-size: 0.5em; font-weight: 600; }
+
+.save-what { font-size: 0.95rem; font-weight: 650; }
 
 .save-which {
   font-size: 0.78rem;
@@ -1301,33 +1351,31 @@ select:focus-visible,
 
 .save-when { font-size: 0.74rem; color: var(--muted); }
 
-.saves-total {
-  margin: 4px 0 0;
-  padding: 14px;
-  font-size: 1rem;
-  text-align: center;
-  background: var(--accent-soft);
-  border-radius: var(--radius);
-}
-
-.saves-total strong {
-  font-size: 1.3rem;
-  color: var(--accent);
-  font-variant-numeric: tabular-nums;
-}
-
 .saves-truth {
-  padding: 16px;
-  border: 1px dashed var(--line);
+  padding: 18px;
+  text-align: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
   border-radius: var(--radius);
 }
 
-.saves-truth p { margin: 0 0 10px; font-size: 0.88rem; line-height: 1.65; color: var(--text-soft); }
-.saves-truth p:last-child { margin-bottom: 0; }
+.saves-truth-lead {
+  margin: 0 0 8px !important;
+  font-size: 0.95rem !important;
+  font-weight: 700;
+  color: var(--warn);
+}
+
+.saves-truth p {
+  margin: 0 auto;
+  max-width: 48ch;
+  font-size: 0.88rem;
+  line-height: 1.7;
+  color: var(--text-soft);
+}
 
 @media (min-width: 640px) {
-  .hero { padding: 40px 24px; }
-  .hero-title { font-size: 1.7rem; }
+  .hero { padding: 52px 28px 44px; }
   .saves-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 

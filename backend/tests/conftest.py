@@ -109,6 +109,36 @@ async def db_session(db_engine) -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture
+async def signed_in(client) -> AsyncIterator[AsyncClient]:
+    """Клиент со сметка, врз развојната база (со вистински производи).
+
+    Следењето бара сметка, па страниците за избор и пребарување не се
+    отвораат без неа. Тука сметката се прави преку вистинскиот тек -
+    поштата е исклучена, па линкот стои на страницата - и се брише на крај,
+    за да второто пуштање не падне на „зафатена адреса".
+    """
+    import re
+    from uuid import uuid4
+
+    from sqlalchemy import delete
+
+    from app.db.session import SessionLocal
+    from app.models import User
+
+    email = f"proba-{uuid4().hex[:10]}@primer.mk"
+    page = await client.post("/registracija", data={"posta": email})
+    found = re.search(r'/vlez\?t=([^"&]+)', page.text)
+    assert found, "поштата треба да е исклучена во тестови, а линкот на страницата"
+    await client.get(f"/vlez?t={found.group(1)}", follow_redirects=False)
+
+    yield client
+
+    async with SessionLocal() as session:
+        await session.execute(delete(User).where(User.email == email))
+        await session.commit()
+
+
+@pytest.fixture
 async def db_client(db_session) -> AsyncIterator[AsyncClient]:
     """HTTP клиент чии записи се враќаат назад.
 
