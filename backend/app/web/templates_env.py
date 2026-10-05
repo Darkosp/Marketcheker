@@ -41,6 +41,12 @@ def brojka(value: int, one: str, many: str) -> str:
 
 
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+# Без ова секоја Jinja ознака остава по еден празен ред и целата своја
+# вовлеченост во одговорот: страницата со 24 картички беше 79 KB, од што
+# добар дел празно место.
+templates.env.trim_blocks = True
+templates.env.lstrip_blocks = True
 templates.env.globals["asset_version"] = asset_version
 templates.env.filters["broj"] = broj
 templates.env.filters["brojka"] = brojka

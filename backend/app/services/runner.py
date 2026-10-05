@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.catalog import default_grouper
 from app.catalog.groups import GROUPS, SUBCATEGORIES
+from app.core.cache import clear_all
 from app.core.logging import get_logger
 from app.db.session import SessionLocal
 from app.models import Chain, PricelistRun, ProductCategory, Store
@@ -264,4 +265,10 @@ async def run_all(
         _run_one(code, run_date=run_date, store_limit=store_limit, resume=resume)
         for code in codes
     ]
-    return list(await asyncio.gather(*tasks))
+    outcomes = list(await asyncio.gather(*tasks))
+
+    # По читањето сè е ново. Кешовите важат десет минути, што е точно за
+    # обичен ден и погрешно токму сега - страницата би покажувала вчерашни
+    # бројки уште десет минути по доаѓањето на денешните.
+    clear_all()
+    return outcomes

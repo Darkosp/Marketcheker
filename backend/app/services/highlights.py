@@ -26,10 +26,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.catalog.picks import Pick, like_pattern
+from app.core.cache import Cache
 from app.models import Chain, PriceRow, Product, ProductCategory, Store
 
 # Колку наназад се гледа за најдобриот пример.
 WINDOW_DAYS = 30
+
+# Истите десет упити за секој посетител правеа две секунди по отворање на
+# почетната. Одговорот се менува еднаш дневно, по читањето во 11:00.
+_CACHE = Cache(seconds=600)
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,6 +96,15 @@ def _pick_clause(pick: Pick):
 async def best_recently(
     session: AsyncSession, today: date, days: int = WINDOW_DAYS
 ) -> list[Highlight]:
+    """Како `_best_recently`, но запаметено до десет минути."""
+    return await _CACHE.get(
+        ("best", today, days), lambda: _best_recently(session, today, days)
+    )
+
+
+async def _best_recently(
+    session: AsyncSession, today: date, days: int
+) -> list[Highlight]:
     """Најдобриот попуст на секој секојдневен производ, во последниве денови.
 
     Еден упит по производ: десет кратки упити се побрзи и почитливи од еден
@@ -151,9 +165,15 @@ def total_savings(highlights: list[Highlight]) -> Decimal:
 
 async def shopping_scale(session: AsyncSession) -> tuple[int, int]:
     """(маркети, продавници) што се читаат - за реченицата „од колку места"."""
-    chains = await session.scalar(select(func.count(func.distinct(Store.chain_id))))
-    stores = await session.scalar(select(func.count(Store.id)))
-    return int(chains or 0), int(stores or 0)
+
+    async def count() -> tuple[int, int]:
+        chains = await session.scalar(
+            select(func.count(func.distinct(Store.chain_id)))
+        )
+        stores = await session.scalar(select(func.count(Store.id)))
+        return int(chains or 0), int(stores or 0)
+
+    return await _CACHE.get("scale", count)
 
 
 __all__ = [
