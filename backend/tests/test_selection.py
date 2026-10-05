@@ -1,8 +1,9 @@
-"""Изборот на корисникот: читање од URL и од колаче.
+"""Изборот на корисникот: читање од URL, и градот од колаче.
 
+Следењето бара сметка, па за листата нема колаче - таа доаѓа од сметката.
 Најважната разлика што се тестира е меѓу „барањето не се изјасни" (нема
 `izbor`) и „барањето рече ништо" (`izbor=`). Без неа копчето „види ги сите
-попусти" не може да работи: колачето веднаш би го вратило стариот избор.
+попусти" не може да работи: сметката веднаш би го вратила стариот избор.
 """
 
 from __future__ import annotations
@@ -93,38 +94,24 @@ def test_empty_parameter_means_everything() -> None:
     assert selection.from_query([""]) == []
 
 
-def test_undecided_request_falls_back_to_the_cookie() -> None:
-    chosen, from_url = selection.resolve(None, "kafe!masla")
+def test_what_is_remembered_applies_when_the_request_is_silent() -> None:
+    chosen, from_url = selection.choose(None, ["kafe", "masla"])
     assert keys(chosen) == ["masla", "kafe"]
     assert from_url is False
 
 
-def test_url_wins_over_the_cookie() -> None:
-    chosen, from_url = selection.resolve(["pelenki"], "kafe")
+def test_the_url_wins_over_what_is_remembered() -> None:
+    chosen, from_url = selection.choose(["pelenki"], ["kafe"])
     assert keys(chosen) == ["pelenki"]
     assert from_url is True
 
 
-def test_empty_url_clears_the_cookie_choice() -> None:
-    chosen, from_url = selection.resolve([""], "kafe!masla")
+def test_an_empty_url_clears_what_was_remembered() -> None:
+    chosen, from_url = selection.choose([""], ["kafe", "masla"])
     assert chosen == []
     assert from_url is True
 
 
-def test_broken_cookie_is_ignored_not_fatal() -> None:
-    assert keys(selection.from_cookie("kafe!!nepostoecko!")) == ["kafe"]
-    assert selection.from_cookie("") == []
-    assert selection.from_cookie(None) == []
-
-
-def test_cookie_round_trip() -> None:
-    chosen = selection.normalise(["kafe", "pelenki"])
-    assert selection.from_cookie(selection.to_cookie(chosen)) == chosen
-
-
-# ==========================================================================
-# Имињата за празната страница
-# ==========================================================================
 def test_labels_are_human_names() -> None:
     chosen = selection.normalise(["kafe", "pelenki"])
     assert selection.labels(chosen) == ["Кафе", "Пелени и марамици"]
@@ -196,32 +183,6 @@ def test_like_characters_do_not_act_as_wildcards() -> None:
     from app.catalog.picks import like_pattern
 
     assert like_pattern("100%") == r"%100\%%"
-
-
-# ==========================================================================
-# Колачето носи и кирилица
-# ==========================================================================
-def test_cyrillic_brands_survive_the_cookie() -> None:
-    """Регресија во подготовка: колачето прима само ASCII, па кирилицата
-    мора да биде процентно кодирана - инаку заглавието го наводничува
-    целото и изборот се губи.
-    """
-    chosen = selection.normalise(["kafe~нескафе", "kafe~јакобс"])
-    written = selection.to_cookie(chosen)
-    assert written.isascii()
-    assert selection.from_cookie(written) == chosen
-
-
-def test_a_brand_with_a_dot_is_not_cut_in_two() -> None:
-    """Точката беше разделник додека не се виде дека брендови ја содржат."""
-    chosen = selection.normalise(["kafe~dr.oetker"])
-    assert selection.from_cookie(selection.to_cookie(chosen)) == chosen
-
-
-def test_the_cookie_is_cut_before_the_browser_refuses_it() -> None:
-    many = [f"kafe~{'бренд' + str(n)}" for n in range(selection.MAX_SELECTED)]
-    written = selection.to_cookie(selection.normalise(many))
-    assert len(written) <= selection.MAX_COOKIE_BYTES
 
 
 # ==========================================================================

@@ -53,6 +53,10 @@ router = APIRouter(tags=["pages"])
 
 CATEGORY_SLUGS = frozenset(category_slugs())
 
+# Каде оди оној што сака да избира, а нема сметка. Листата живее на
+# сметката: без неа нема каде да се зачува и нема чија да биде.
+NEEDS_ACCOUNT = "/registracija"
+
 # Колку попусти по страница.
 #
 # Стандардно 24, не 48: страницата со 48 картички е 107 KB и се гради околу
@@ -168,13 +172,6 @@ def is_htmx_request(request: Request) -> bool:
     return bool(request.headers.get("hx-request"))
 
 
-def _cookie_keys(request: Request) -> list[str]:
-    """Записите на изборот од колачето, без чистење - тоа го прави `choose`."""
-    return [pick.key for pick in selection.from_cookie(
-        request.cookies.get(selection.COOKIE_NAME)
-    )]
-
-
 def _remember(response: Response, name: str, value: str) -> None:
     """Колачето го памети избраното; празна вредност го брише.
 
@@ -219,12 +216,15 @@ async def index(
 
     page_size = _clamp_page_size(po_strana)
     stores = _store_ids(market)
-    # Со сметка листата е на човекот; без неа на уредот.
-    if user is not None:
-        remembered = await accounts.load_picks(session, user)
+    # Следењето бара сметка: без неа се гледаат сите денешни попусти, и
+    # ништо не се памети. Инаку двајца на ист компјутер делат листа, а
+    # листата што ја нема каде да се зачува само се губи.
+    if user is None:
+        chosen, chosen_in_url = [], False
     else:
-        remembered = _cookie_keys(request)
-    chosen, chosen_in_url = selection.choose(izbor, remembered)
+        chosen, chosen_in_url = selection.choose(
+            izbor, await accounts.load_picks(session, user)
+        )
 
     # Градот се разрешува ПРЕД филтрите, зашто и тој се памети. Списокот
     # градови и така му треба на приказот, па не чини дополнителен упит.
@@ -341,11 +341,8 @@ async def index(
             await accounts.set_city(session, user, grad)
         if chosen_in_url or grad_in_url:
             await session.commit()
-    else:
-        if chosen_in_url:
-            _remember(response, selection.COOKIE_NAME, selection.to_cookie(chosen))
-        if grad_in_url:
-            _remember(response, selection.CITY_COOKIE, grad)
+    elif grad_in_url:
+        _remember(response, selection.CITY_COOKIE, grad)
     return response
 
 
@@ -418,16 +415,13 @@ async def selection_page(
     трајна намера, а „Кафе 0" би изгледало како причина кафето да не се
     избере.
     """
-    if user is not None:
-        remembered = await accounts.load_picks(session, user)
-        kept_city = await accounts.city_of(session, user)
-    else:
-        remembered = _cookie_keys(request)
-        kept_city = request.cookies.get(selection.CITY_COOKIE) or ""
-    chosen, _ = selection.choose(izbor, remembered)
+    if user is None:
+        return RedirectResponse(NEEDS_ACCOUNT, status_code=303)
+
+    chosen, _ = selection.choose(izbor, await accounts.load_picks(session, user))
     # Градот не се менува тука, но мора да патува со изборот - инаку
     # „Прикажи попусти" би го вратило на „сите градови".
-    grad = grad or kept_city or None
+    grad = grad or await accounts.city_of(session, user) or None
 
     # Напишан бренд: се додава и се враќа на чисто URL, за да освежување на
     # страницата не го додаде истото двапати.
@@ -476,7 +470,7 @@ async def search_page(
     q: str = "",
     izbor: list[str] | None = Query(default=None),
     grad: str | None = None,
-) -> HTMLResponse:
+) -> Response:
     """Пишување наместо кликање низ нивоата.
 
     Истата страница одговара на трите случаи, бидејќи разликата меѓу нив е
@@ -488,11 +482,10 @@ async def search_page(
 
     Стеснувањето е уште еден збор во истото поле, не друг механизам.
     """
-    if user is not None:
-        remembered = await accounts.load_picks(session, user)
-    else:
-        remembered = _cookie_keys(request)
-    chosen, _ = selection.choose(izbor, remembered)
+    if user is None:
+        return RedirectResponse(NEEDS_ACCOUNT, status_code=303)
+
+    chosen, _ = selection.choose(izbor, await accounts.load_picks(session, user))
     grad = grad or ""
 
     found = await understand(session, q) if q.strip() else None
