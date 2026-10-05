@@ -1,0 +1,42 @@
+{
+  "name": "DARBOX Marketchecker — денешни попусти",
+  "short_name": "DARBOX",
+  "description": "Денешните попусти од маркетите во Македонија, на едно место.",
+  "lang": "mk",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f4f6f8",
+  "theme_color": "#0d7a6f",
+  "categories": ["shopping", "food", "lifestyle"],
+  "icons": [
+    {
+      "src": "/static/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icon-maskable.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Статистика",
+      "short_name": "Статистика",
+      "description": "Кој маркет попушта најмногу",
+      "url": "/statistika"
+    },
+    {
+      "name": "Состојба на читањата",
+      "short_name": "Состојба",
+      "description": "Кој извор поминал, кој паднал",
+      "url": "/sostojba"
+    }
+  ]
+}

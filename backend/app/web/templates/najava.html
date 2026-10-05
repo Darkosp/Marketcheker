@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block body %}
+<div class="layout layout-single">
+  <main class="content auth">
+
+    <section class="page-head">
+      <h1>Влез</h1>
+      <p class="subtitle">
+        Корисничко име и адреса — тие се твојот влез. Нема лозинка.
+      </p>
+    </section>
+
+    <form class="auth-form" method="post" action="/najava">
+      {% if error %}
+        <p class="auth-error" role="alert">{{ error }}</p>
+      {% endif %}
+
+      <label class="field">
+        <span class="field-label">Корисничко име</span>
+        <input class="auth-input" type="text" name="ime" value="{{ ime|default('') }}"
+               autocomplete="username" autocapitalize="none" spellcheck="false"
+               required autofocus>
+      </label>
+
+      <label class="field">
+        <span class="field-label">Е-пошта</span>
+        <input class="auth-input" type="email" name="posta" value="{{ posta|default('') }}"
+               autocomplete="email" autocapitalize="none" spellcheck="false"
+               inputmode="email" required>
+        <span class="auth-hint">Истата со која ја отвори сметката.</span>
+      </label>
+
+      <button class="btn auth-submit" type="submit">Влези</button>
+    </form>
+
+    <p class="auth-switch">
+      Немаш сметка? <a href="/registracija">Направи сметка</a>
+    </p>
+
+  </main>
+</div>
+{% endblock %}

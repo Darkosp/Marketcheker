@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{# Изборот на производи - чекор по чекор.
+
+   Прво групите, потоа под-категориите, потоа зборовите од вистинските
+   називи (вид, бренд, грамажа). Секое ниво може да биде последно: може да
+   се земе цела „Пијалоци и напитоци", или да се слезе до „Нескафе".
+
+   Сè оди со обични врски, не со формулар: така слегувањето ниво подолу не
+   го губи она што е веќе избрано, секоја состојба има свое URL, и нема
+   ништо што бара JavaScript. #}
+
+{% block body %}
+<div class="layout layout-single">
+  <main class="content pick">
+
+    <section class="page-head">
+      <h1>Што следиш</h1>
+      <p class="subtitle">
+        Избери што сакаш да ти се прикажува. Може цела група, може еден
+        бренд. Изборот останува ист додека сам не го смениш.
+      </p>
+    </section>
+
+    {# ===================== твојата листа ===================== #}
+    <section class="mine">
+      {% if chosen %}
+        <h2 class="mine-title">Следиш {{ chosen|length }}</h2>
+        <ul class="mine-list">
+          {% for pick in chosen %}
+            <li class="mine-item">
+              <span class="mine-name">{{ pick.label }}</span>
+              <a class="mine-drop" href="{{ link(drop=pick.key, open_slug=node.slug if node else None) }}"
+                 aria-label="Отстрани {{ pick.label }}">✕</a>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="mine-empty">
+          Листата е празна — засега ќе ти се прикажуваат <strong>сите</strong>
+          денешни попусти. Избери подолу за да ја стесниш.
+        </p>
+      {% endif %}
+    </section>
+
+    {# ===================== каде сме ===================== #}
+    {% if node %}
+      <nav class="trail" aria-label="Каде си">
+        <a href="{{ link() }}">сите групи</a>
+        {% if parent %}
+          <span class="trail-sep">›</span>
+          <a href="{{ link(open_slug=parent.slug) }}">{{ parent.name }}</a>
+        {% endif %}
+        <span class="trail-sep">›</span>
+        <span class="trail-now">{{ node.name }}</span>
+      </nav>
+
+      {# Секое ниво може да биде последно - и ова. #}
+      <a class="take-all" href="{{ link(add=node.slug, open_slug=node.slug) }}">
+        <span class="take-all-text">
+          Следи <strong>{{ node.name|lower }}</strong> во целост
+        </span>
+        <span class="take-all-count">{{ node.product_count|broj }} производи</span>
+      </a>
+    {% endif %}
+
+    {# ===================== следното ниво ===================== #}
+    {% if options %}
+      <h2 class="step-title">
+        {% if node %}Или избери поточно{% else %}Од што почнуваме{% endif %}
+      </h2>
+      <ul class="steps">
+        {% for option in options %}
+          <li class="step">
+            {# Отворањето и земањето се две различни работи, па се две
+               различни копчиња - инаку не се знае што прави кликот. #}
+            <a class="step-open" href="{{ link(open_slug=option.slug) }}">
+              <span class="step-name">{{ option.name }}</span>
+              <span class="step-count">{{ option.product_count|broj }}</span>
+              <span class="step-go" aria-hidden="true">›</span>
+            </a>
+            <a class="step-take {% if option.slug in chosen_keys %}step-on{% endif %}"
+               href="{{ link(add=option.slug, open_slug=node.slug if node else None) }}">
+              {% if option.slug in chosen_keys %}следиш{% else %}следи{% endif %}
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {# ===================== вид, бренд, грамажа ===================== #}
+    {% if node and not options %}
+      <h2 class="step-title">Или само одреден производ</h2>
+
+      <form class="type" method="get" action="/izbor">
+        {% for pick in chosen %}
+          <input type="hidden" name="izbor" value="{{ pick.key }}">
+        {% endfor %}
+        <input type="hidden" name="izbor" value="">
+        <input type="hidden" name="otvori" value="{{ node.slug }}">
+        <label class="field">
+          <span class="field-label">Напиши бренд или вид</span>
+          <input class="pick-find" type="search" name="dodaj" autocomplete="off"
+                 placeholder="нескафе, инстант, 200г…">
+        </label>
+        <button class="btn" type="submit">Додади</button>
+      </form>
+
+      {% if terms %}
+        <p class="type-note">
+          Зборовите подолу се од <strong>вистинските називи</strong> во
+          ценовниците — колку производа носи секој.
+        </p>
+        <div class="terms">
+          {% for term in terms if not term.is_package %}
+            {% set key = node.slug ~ "~" ~ term.text|lower %}
+            <a class="term {% if key in chosen_keys %}term-on{% endif %}"
+               href="{{ link(add=key, open_slug=node.slug) }}">
+              {{ term.text }}<span class="term-count">{{ term.products }}</span>
+            </a>
+          {% endfor %}
+        </div>
+
+        {% set packages = terms | selectattr("is_package") | list %}
+        {% if packages %}
+          <p class="type-note">Грамажа</p>
+          <div class="terms">
+            {% for term in packages %}
+              {% set key = node.slug ~ "~" ~ term.text|lower %}
+              <a class="term term-sm {% if key in chosen_keys %}term-on{% endif %}"
+                 href="{{ link(add=key, open_slug=node.slug) }}">
+                {{ term.text }}<span class="term-count">{{ term.products }}</span>
+              </a>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endif %}
+    {% endif %}
+
+    {# ===================== долната лента ===================== #}
+    <div class="pick-bar">
+      <span class="pick-chosen">
+        {% if chosen %}
+          во листата: {{ chosen|length }}
+        {% else %}
+          листата е празна — ќе се прикажат сите попусти
+        {% endif %}
+      </span>
+      <span class="pick-actions">
+        {% if chosen %}
+          <a class="btn btn-ghost" href="/?izbor=">испразни</a>
+        {% endif %}
+        <a class="btn" href="{{ link(show=True) }}">Прикажи попусти</a>
+      </span>
+    </div>
+
+  </main>
+</div>
+{% endblock %}

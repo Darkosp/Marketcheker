@@ -1,0 +1,295 @@
+[
+ {
+  "Id": 73,
+  "Name": "Радовиш",
+  "Key": 73,
+  "Value": "Радовиш",
+  "Address": "бул. Александар Македонски бр.34 А",
+  "Coordinates": "41.628251341026996, 22.455374587226718",
+  "ContactPhone": "071/341-256",
+  "ContactMail": null,
+  "ContactPerson": null,
+  "City": "Радовиш",
+  "Municipality": "Радовиш",
+  "Fax": null,
+  "WorkingHours": "08:00 – 21:00",
+  "SundayWorkingHours": "неработен ден",
+  "Visible": false,
+  "ShopImages": [],
+  "Code": null,
+  "HasStock": false,
+  "Tags": [
+   "bakery",
+   "parking",
+   "fishfood"
+  ],
+  "ShopFiles": [
+   {
+    "RelativePath": "2026/10/02/73.pdf",
+    "Title": "73.pdf",
+    "Description": null,
+    "Author": "nsadmin",
+    "DateUploaded": "/Date(1790892000000)/",
+    "ResourceFileId": "d30c107c-3fa2-4cd0-b379-a9fb3987ed10",
+    "Type": 1,
+    "Id": 272
+   }
+  ]
+ },
+ {
+  "Id": 46,
+  "Name": "Штип - 3",
+  "Key": 46,
+  "Value": "Штип - 3",
+  "Address": "ул. Сутјеска бб",
+  "Coordinates": "41.74165800671116, 22.198551041108725",
+  "ContactPhone": "071/207-157",
+  "ContactMail": null,
+  "ContactPerson": null,
+  "City": "Штип",
+  "Municipality": "Штип",
+  "Fax": null,
+  "WorkingHours": "08:00 – 21:30",
+  "SundayWorkingHours": "неработен ден",
+  "Visible": false,
+  "ShopImages": [],
+  "Code": null,
+  "HasStock": false,
+  "Tags": [
+   "parking"
+  ],
+  "ShopFiles": [
+   {
+    "RelativePath": "2026/10/02/46.pdf",
+    "Title": "46.pdf",
+    "Description": null,
+    "Author": "nsadmin",
+    "DateUploaded": "/Date(1790892000000)/",
+    "ResourceFileId": "681f751d-a744-4d3e-b7c3-c524c4967e6a",
+    "Type": 1,
+    "Id": 228
+   }
+  ]
+ },
+ {
+  "Id": 40,
+  "Name": "Велес",
+  "Key": 40,
+  "Value": "Велес",
+  "Address": "ул. 8ми Септември бр. 148 (ул. Маршал Тито бб згр.2вл.1-сутерен)",
+  "Coordinates": "41.7149677318537, 21.78405322809998",
+  "ContactPhone": "070/360-315",
+  "ContactMail": null,
+  "ContactPerson": null,
+  "City": "Велес",
+  "Municipality": "Велес",
+  "Fax": null,
+  "WorkingHours": "07:30 – 21:30",
+  "SundayWorkingHours": "неработен ден",
+  "Visible": false,
+  "ShopImages": [],
+  "Code": null,
+  "HasStock": false,
+  "Tags": [
+   "bakery",
+   "parking",
+   "fishfood"
+  ],
+  "ShopFiles": [
+   {
+    "RelativePath": "2026/10/02/40.pdf",
+    "Title": "40.pdf",
+    "Description": null,
+    "Author": "nsadmin",
+    "DateUploaded": "/Date(1790892000000)/",
+    "ResourceFileId": "afd8f938-ecb2-47ce-bb81-cfe466459135",
+    "Type": 1,
+    "Id": 204
+   }
+  ]
+ },
+ {
+  "Id": 95,
+  "Name": "Аеродром - 4",
+  "Key": 95,
+  "Value": "Аеродром - 4",
+  "Address": "ул. Ангел Димовски бр.4",
+  "Coordinates": "41.984807165601545, 21.458910458896543",
+  "ContactPhone": "071/341-254",
+  "ContactMail": null,
+  "ContactPerson": null,
+  "City": "Скопје",
+  "Municipality": "Аеродром",
+  "Fax": null,
+  "WorkingHours": "07:30 – 22:00",
+  "SundayWorkingHours": "Неработен ден",
+  "Visible": false,
+  "ShopImages": [],
+  "Code": null,
+  "HasStock": false,
+  "Tags": [
+   "parking",
+   "bakery",
+   "cookedfood",
+   "fishfood"
+  ],
+  "ShopFiles": [
+   {
+    "RelativePath": "2026/10/02/95.pdf",
+    "Title": "95.pdf",
+    "Description": null,
+    "Author": "nsadmin",
+    "DateUploaded": "/Date(1790892000000)/",
+    "ResourceFileId": "afc6c1c7-d5c1-49a3-bfee-93dcfa692fc2",
+    "Type": 1,
+    "Id": 261
+   }
+  ]
+ },
+ {
+  "Id": 74,
+  "Name": "Ресен",
+  "Key": 74,
+  "Value": "Ресен",
+  "Address": "ул. Ленинова бр. 25",
+  "Coordinates": "41.084952192129926, 21.01376675889795",
+  "ContactPhone": "070/235-155",
+  "ContactMail": null,
+  "ContactPerson": null,
+  "City": "Ресен",
+  "Municipality": "Ресен",
+  "Fax": null,
+  "WorkingHours": "07:30 – 21:30",
+  "SundayWorkingHours": "неработен ден",
+  "Visible": false,
+  "ShopImages": [],
+  "Code": null,
+  "HasStock": false,
+  "Tags": [
+   "bakery",
+   "parking",
+   "fishFood"
+  ],
+  "ShopFiles": [
+   {
+    "RelativePath": "2026/10/02/74.pdf",
+    "Title": "74.pdf",
+    "Description": null,
+    "Author": "nsadmin",
+    "DateUploaded": "/Date(1790892000000)/",
+    "ResourceFileId": "372cf176-6e3e-4353-b4e4-280589b0f910",
+    "Type": 1,
+    "Id": 254
+   }
+  ]
+ },
+ {
+  "Id": 42,
+  "Name": "Карпош - 4",
+  "Key": 42,
+  "Value": "Карпош - 4",
+  "Address": "бул. Партизански Oдреди бр.80А - сутерен",
+  "Coordinates": "42.00505047933581, 21.384770688343924",
+  "ContactPhone": "071/341-128",
+  "ContactMail": null,
+  "ContactPerson": null,
+  "City": "Скопје",
+  "Municipality": "Карпош",
+  "Fax": null,
+  "WorkingHours": "08:00 - 21:00",
+  "SundayWorkingHours": "неработен ден",
+  "Visible": false,
+  "ShopImages": [],
+  "Code": null,
+  "HasStock": false,
+  "Tags": [
+   "bakery"
+  ],
+  "ShopFiles": [
+   {
+    "RelativePath": "2026/10/02/42.pdf",
+    "Title": "42.pdf",
+    "Description": null,
+    "Author": "nsadmin",
+    "DateUploaded": "/Date(1790892000000)/",
+    "ResourceFileId": "e98f2859-75d7-4c88-aa9f-db63bbd2b1c7",
+    "Type": 1,
+    "Id": 212
+   }
+  ]
+ },
+ {
+  "Id": 29,
+  "Name": "Охрид - 1",
+  "Key": 29,
+  "Value": "Охрид - 1",
+  "Address": "бул. Туристичка бр.6",
+  "Coordinates": "41.10919017478015, 20.811500681836",
+  "ContactPhone": "071/330-778",
+  "ContactMail": null,
+  "ContactPerson": null,
+  "City": "Охрид",
+  "Municipality": "Охрид",
+  "Fax": null,
+  "WorkingHours": "07:30 - 22:00",
+  "SundayWorkingHours": "08:00 - 22:00",
+  "Visible": false,
+  "ShopImages": [],
+  "Code": null,
+  "HasStock": false,
+  "Tags": [
+   "parking",
+   "bakery",
+   "fishfood"
+  ],
+  "ShopFiles": [
+   {
+    "RelativePath": "2026/10/02/29.pdf",
+    "Title": "29.pdf",
+    "Description": null,
+    "Author": "nsadmin",
+    "DateUploaded": "/Date(1790892000000)/",
+    "ResourceFileId": "cb5d5c65-e97c-4e31-880e-537dacd5f38e",
+    "Type": 1,
+    "Id": 248
+   }
+  ]
+ },
+ {
+  "Id": 31,
+  "Name": "Ново Лисиче - 2",
+  "Key": 31,
+  "Value": "Ново Лисиче - 2",
+  "Address": "бул. Видое Смилевски Бато бб",
+  "Coordinates": "41.98007934029797, 21.475223330993526",
+  "ContactPhone": "071/330-778",
+  "ContactMail": null,
+  "ContactPerson": null,
+  "City": "Скопје",
+  "Municipality": "Аеродром",
+  "Fax": null,
+  "WorkingHours": "08:00 - 22:00",
+  "SundayWorkingHours": "неработен ден",
+  "Visible": false,
+  "ShopImages": [],
+  "Code": null,
+  "HasStock": false,
+  "Tags": [
+   "bakery",
+   "parking",
+   "fishfood"
+  ],
+  "ShopFiles": [
+   {
+    "RelativePath": "2026/10/02/31.pdf",
+    "Title": "31.pdf",
+    "Description": null,
+    "Author": "nsadmin",
+    "DateUploaded": "/Date(1790892000000)/",
+    "ResourceFileId": "b0a6cb35-ea06-4801-8621-cbf5211a610a",
+    "Type": 1,
+    "Id": 256
+   }
+  ]
+ }
+]

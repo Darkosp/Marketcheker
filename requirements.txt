@@ -1,1 +1,32 @@
+# Marketchecker - продукциски зависности (Python 3.12)
+# Долни граници, не точни пинови; точните верзии се во requirements.lock.txt
+# (генериран од образот: docker compose run --rm api pip freeze).
 
+# ---- Web ----
+fastapi>=0.115
+uvicorn[standard]>=0.32
+jinja2>=3.1
+python-multipart>=0.0.17
+itsdangerous>=2.2
+# Испраќање пошта без да се блокира јамката (потврда на адреса, најава).
+aiosmtplib>=3.0
+
+# ---- База ----
+sqlalchemy[asyncio]>=2.0.36
+alembic>=1.14
+asyncpg>=0.30
+pydantic>=2.9
+pydantic-settings>=2.6
+
+# ---- Безбедност ----
+argon2-cffi>=23.1
+
+# ---- Читачи на ценовници ----
+httpx>=0.27
+selectolax>=0.3.21
+beautifulsoup4>=4.12
+lxml>=5.3
+pdfplumber>=0.11
+
+# ---- Дневно закажување ----
+apscheduler>=3.11

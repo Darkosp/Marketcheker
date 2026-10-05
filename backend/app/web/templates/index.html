@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block body %}
+<form class="layout"
+      hx-get="/"
+      hx-target="#rezultati"
+      hx-trigger="change, submit"
+      hx-push-url="true"
+      hx-indicator="#loading">
+
+  <input type="hidden" name="datum" value="{{ run_date.isoformat() }}">
+  {# Промена на филтер враќа на прва страница; копчињата за страници го
+     препишуваат ова поле пред да го испратат формуларот. #}
+  <input type="hidden" name="strana" id="strana" value="1">
+  {# Избраната категорија живее во скриено поле, не во името на копчето.
+     Инаку страничењето ја губи: копчето за „следна" не носи grupa. #}
+  <input type="hidden" name="grupa" id="grupa" value="{{ selected.grupa }}">
+
+  <!-- ===================== странична лента ===================== -->
+  <aside class="sidebar">
+    <details class="panel">
+      <summary class="panel-head">
+        <span class="panel-title">Филтри и подредување</span>
+        <span class="panel-caret" aria-hidden="true"></span>
+      </summary>
+
+      <div class="panel-body">
+        <label class="field">
+          <span class="field-label">Град</span>
+          <select name="grad">
+            <option value="">сите градови</option>
+            {% for slug, name, store_count in cities %}
+              <option value="{{ slug }}" {% if selected.grad == slug %}selected{% endif %}>
+                {{ name }} ({{ store_count }})
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+
+        {% include "partials/store_field.html" %}
+
+        <label class="field">
+          <span class="field-label">Подреди по</span>
+          <select name="sortiraj">
+            {% for value, label in sort_options %}
+              <option value="{{ value }}" {% if selected.sortiraj == value %}selected{% endif %}>
+                {{ label }}
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">По страница</span>
+          <select name="po_strana">
+            {% for size in page_sizes %}
+              <option value="{{ size }}" {% if selected.po_strana == size %}selected{% endif %}>
+                {{ size }} попусти
+              </option>
+            {% endfor %}
+          </select>
+        </label>
+
+        {# Неоштиклирано поле прелистувачот воопшто не го праќа, па
+           серверот ја земаше стандардната вредност и исклучувањето немаше
+           ефект. Скриеното „false" оди секогаш; кога е штиклирано, по него
+           оди „true" и последната вредност победува. #}
+        <label class="switch">
+          <input type="hidden" name="lojalnost" value="false">
+          <input type="checkbox" name="lojalnost" value="true"
+                 {% if selected.lojalnost %}checked{% endif %}>
+          <span>Попусти со картичка за лојалност</span>
+        </label>
+
+        <label class="switch">
+          <input type="hidden" name="ednodnevni" value="false">
+          <input type="checkbox" name="ednodnevni" value="true"
+                 {% if selected.ednodnevni %}checked{% endif %}>
+          <span>Само еднодневни попусти</span>
+        </label>
+      </div>
+    </details>
+  </aside>
+
+  <!-- ===================== резултати ===================== -->
+  <main class="content">
+    <section class="page-head">
+      <h1>Денешни попусти</h1>
+      {% if is_stale %}
+        <p class="notice">
+          За {{ today.strftime("%d.%m.%Y") }} сè уште нема податоци — прикажано е
+          последното читање од <strong>{{ run_date.strftime("%d.%m.%Y") }}</strong>.
+          <a href="/sostojba">Зошто?</a>
+        </p>
+      {% else %}
+        <p class="subtitle">
+          {{ run_date.strftime("%d.%m.%Y") }} · Веро, Рамстор, Кипер и КАМ
+        </p>
+      {% endif %}
+    </section>
+
+    {% include "partials/selection_bar.html" %}
+    {% include "partials/chips.html" %}
+
+    <div id="rezultati">
+      {% include "partials/results.html" %}
+    </div>
+  </main>
+</form>
+
+<script>
+  // На поширок екран има место, па филтрите стојат отворени. На телефон
+  // се преклопуваат. <details> сам по себе не знае за ширина.
+  const panel = document.querySelector(".panel");
+  const wide = window.matchMedia("(min-width: 960px)");
+  const syncPanel = () => { if (panel) panel.open = wide.matches; };
+  syncPanel();
+  wide.addEventListener("change", syncPanel);
+
+  // Копчињата ги поставуваат скриените полиња пред праќање.
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-strana], [data-grupa]");
+    if (!button) return;
+
+    if (button.dataset.grupa !== undefined) {
+      const grupa = document.getElementById("grupa");
+      if (grupa) grupa.value = button.dataset.grupa;
+    }
+    if (button.dataset.strana !== undefined) {
+      const strana = document.getElementById("strana");
+      if (strana) strana.value = button.dataset.strana;
+    }
+  });
+
+  // Промена на филтер секогаш враќа на прва страница.
+  document.addEventListener("change", (event) => {
+    if (!event.target.closest(".panel-body, .chips")) return;
+    const strana = document.getElementById("strana");
+    if (strana) strana.value = "1";
+
+    // Нов град значи друг список маркети; претходно избраниот маркет
+    // веројатно не е во него, па изборот се поништува пред праќањето.
+    if (event.target.name === "grad") {
+      const market = document.querySelector('select[name="market"]');
+      if (market) market.value = "";
+    }
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,17 @@
+# Нормализирај крајови на редови: во репото секогаш LF.
+# Без ова, CRLF од Windows ги расипува скриптите внатре во Docker (Linux).
+* text=auto eol=lf
+
+*.py    text eol=lf
+*.html  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.ini   text eol=lf
+*.md    text eol=lf
+*.sh    text eol=lf
+
+# Примероци за тестови - никогаш не ги менувај
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+backend/tests/fixtures/** -text

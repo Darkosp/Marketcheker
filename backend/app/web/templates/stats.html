@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block body %}
+<div class="layout layout-single">
+  <main class="content">
+    <section class="page-head">
+      <h1>Кој маркет попушта најмногу</h1>
+      <p class="subtitle">
+        {{ run_date.strftime("%d.%m.%Y") }} ·
+        {{ "{:,}".format(totals.products).replace(",", ".") }} производи во
+        ценовниците, од кои
+        {{ "{:,}".format(totals.discounts).replace(",", ".") }} на попуст
+      </p>
+    </section>
+
+    {% if not chains %}
+      <p class="empty">Нема собрана статистика за овој ден.</p>
+    {% else %}
+
+      <!-- ===================== по маркет ===================== -->
+      <section class="stat-block">
+        <h2 class="stat-title">По маркет</h2>
+        <p class="stat-note">
+          Подредено по <strong>удел</strong> на попусти, не по број. Маркет со
+          20.000 производи и 1.000 попусти не е подарежлив од маркет со 2.000
+          производи и 300 попусти.
+        </p>
+
+        <ul class="bars">
+          {% for row in chains %}
+            <li class="bar-row">
+              <div class="bar-head">
+                <span class="bar-name">{{ row.chain_name }}</span>
+                <span class="bar-value">{{ "%.1f"|format(row.discount_share * 100) }}%</span>
+              </div>
+              <div class="bar-track">
+                <div class="bar-fill" style="width: {{ (row.discount_share * 100 * 4)|round(1) }}%"></div>
+              </div>
+              <div class="bar-meta">
+                {{ "{:,}".format(row.discounts_total).replace(",", ".") }} попусти
+                од {{ "{:,}".format(row.products_total).replace(",", ".") }} производи
+                · {{ row.stores }} продавници
+                {% if row.avg_discount_pct %}
+                  · просечен попуст {{ row.avg_discount_pct|round(0)|int }}%
+                {% endif %}
+                {% if row.total_savings %}
+                  · вкупно симнати
+                  <strong>{{ "{:,.0f}".format(row.total_savings).replace(",", ".") }} ден</strong>
+                {% endif %}
+              </div>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+
+      <!-- ===================== по продавница ===================== -->
+      <section class="stat-block">
+        <h2 class="stat-title">Најдарежливи продавници</h2>
+        <table class="status-table">
+          <thead>
+            <tr>
+              <th>Продавница</th>
+              <th class="num">Удел</th>
+              <th class="num">Попусти</th>
+              <th class="num">Асортиман</th>
+              <th class="num">Просек</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for chain, store, total, discounts, avg in stores %}
+              <tr>
+                <td>{{ chain }} · {{ store }}</td>
+                <td class="num"><strong>{{ "%.1f"|format(discounts / total * 100) }}%</strong></td>
+                <td class="num">{{ discounts }}</td>
+                <td class="num">{{ "{:,}".format(total).replace(",", ".") }}</td>
+                <td class="num">{{ (avg or 0)|round(0)|int }}%</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <!-- ===================== движење на цените ===================== -->
+      <section class="stat-block">
+        <h2 class="stat-title">Движење на цените</h2>
+        {% if movement.total %}
+          <div class="movement">
+            <div class="move move-up">
+              <span class="move-value">{{ "{:,}".format(movement.up).replace(",", ".") }}</span>
+              <span class="move-label">поскапувања</span>
+            </div>
+            <div class="move move-down">
+              <span class="move-value">{{ "{:,}".format(movement.down).replace(",", ".") }}</span>
+              <span class="move-label">поевтинувања</span>
+            </div>
+          </div>
+          <p class="stat-note">Во последните 30 дена.</p>
+        {% else %}
+          <p class="empty">
+            Сè уште нема споредба — ова е првиот ден со податоци.<br>
+            Движењето на цените се појавува откако ќе има барем два дена.
+          </p>
+        {% endif %}
+      </section>
+
+    {% endif %}
+
+    <p class="subtitle" style="margin-top: 20px;">
+      <a href="/">← назад на попустите</a> ·
+      <a href="/sostojba">состојба на читањата</a>
+    </p>
+  </main>
+</div>
+{% endblock %}

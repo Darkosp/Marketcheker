@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img"
+     aria-label="Marketchecker">
+  <!-- Maskable: знакот е во централните 80%, за да не го отсече маската
+       кога системот го заоблува или кружи. -->
+  <rect width="512" height="512" fill="#0d7a6f"/>
+  <g fill="none" stroke="#ffffff" stroke-width="34" stroke-linecap="round">
+    <circle cx="203" cy="203" r="42"/>
+    <circle cx="309" cy="309" r="42"/>
+    <path d="M330 176 L182 336"/>
+  </g>
+</svg>

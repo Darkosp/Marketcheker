@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="mk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0f766e" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0b1220" media="(prefers-color-scheme: dark)">
+  <meta name="description" content="Денешните попусти од маркетите во Македонија, на едно место.">
+  <title>{% block title %}{{ title|default("DARBOX Marketchecker") }}{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css?v={{ asset_version() }}">
+  <link rel="manifest" href="/static/manifest.webmanifest">
+  <link rel="icon" href="/static/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/static/icon.svg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="DARBOX">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/htmx/2.0.4/htmx.min.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/">
+      <span class="brand-mark" aria-hidden="true">%</span>
+      <span class="brand-name"><strong>DARBOX</strong> Marketchecker</span>
+    </a>
+    <nav class="topnav">
+      <a href="/izbor">што следиш</a>
+      <a href="/statistika">статистика</a>
+      {% if user %}
+        <span class="topnav-me">{{ user.username }}</span>
+        {# Одјава со POST: врска што одјавува со клик може да ја активира и
+           туѓа страница, или прелистувачот сам при предвчитување. #}
+        <form class="topnav-out" method="post" action="/odjava">
+          <button type="submit">одјави се</button>
+        </form>
+      {% else %}
+        <a href="/najava">најава</a>
+      {% endif %}
+    </nav>
+  </header>
+
+  {% block body %}{% endblock %}
+
+  <script>
+    // Service worker-от служи апликацијата да се отвора веднаш и да каже
+    // нешто разумно кога нема интернет. Регистрацијата е необврзна: ако
+    // прелистувачот не го поддржува, сè работи како порано.
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
+      });
+    }
+  </script>
+
+  <footer class="footer">
+    Цените се преземени од јавните ценовници на маркетите и може да се
+    разликуваат на лице место.
+  </footer>
+</body>
+</html>

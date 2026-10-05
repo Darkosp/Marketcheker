@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="mk">
+<head><meta charset="utf-8"></head>
+{# Стиловите се ВНАТРЕ во ознаките намерно: читачите на пошта во најголем
+   дел го фрлаат <style> од заглавието. #}
+<body style="margin:0;padding:24px;background:#f4f6f8;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111827;">
+  <div style="max-width:480px;margin:0 auto;padding:28px;background:#ffffff;border-radius:12px;">
+
+    <p style="margin:0 0 4px;font-size:13px;font-weight:700;letter-spacing:.04em;color:#0d7a6f;">
+      DARBOX MARKETCHECKER
+    </p>
+
+    <h1 style="margin:0 0 16px;font-size:20px;font-weight:650;">
+      {% if first_time %}Потврди ја адресата{% else %}Влез во твојата сметка{% endif %}
+    </h1>
+
+    <p style="margin:0 0 20px;font-size:15px;line-height:1.6;">
+      Здраво, <strong>{{ username }}</strong>.
+      {% if first_time %}
+        Ја отвори сметката. Остана едно нешто — да потврдиш дека оваа
+        адреса е твоја.
+      {% else %}
+        Побарано е влегување во твојата сметка.
+      {% endif %}
+    </p>
+
+    <p style="margin:0 0 20px;">
+      <a href="{{ link }}"
+         style="display:inline-block;padding:13px 22px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;background:#0d7a6f;border-radius:8px;">
+        {% if first_time %}Потврди и влези{% else %}Влези{% endif %}
+      </a>
+    </p>
+
+    <p style="margin:0 0 20px;font-size:13px;line-height:1.6;color:#6b7280;">
+      Линкот важи {{ minutes }} минути и може да се искористи само еднаш.
+      Ако копчето не работи, залепи ја оваа адреса во прелистувач:<br>
+      <span style="word-break:break-all;color:#4b5563;">{{ link }}</span>
+    </p>
+
+    <p style="margin:0;padding-top:16px;border-top:1px solid #e5e7eb;font-size:13px;line-height:1.6;color:#6b7280;">
+      Ако ова не си ти, не прави ништо. Никој не може да влезе без да го
+      отвори линкот од оваа порака.
+    </p>
+
+  </div>
+</body>
+</html>

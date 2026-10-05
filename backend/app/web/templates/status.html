@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block body %}
+<div class="layout layout-single">
+  <main class="content">
+    <section class="page-head">
+      <h1>Состојба на читањата</h1>
+      <p class="subtitle">
+        {{ run_date.strftime("%d.%m.%Y") }}
+        {% if is_stale %}(последниот ден со податоци){% endif %}
+        · {{ "{:,}".format(total).replace(",", ".") }} попусти запишани
+      </p>
+      {% if is_stale %}
+        <p class="notice">
+          За {{ today.strftime("%d.%m.%Y") }} сè уште нема читање.
+        </p>
+      {% endif %}
+    </section>
+
+    <p class="subtitle" style="margin-bottom: 12px;">
+      Читач што не успее се запишува — никогаш не враќа тивко празен
+      резултат. Тука се гледа кој извор поминал, а кој не.
+    </p>
+
+    {% if not runs %}
+      <p class="empty">Нема запишани читања за овој ден.</p>
+    {% else %}
+      <table class="status-table">
+        <thead>
+          <tr><th>Маркет</th><th>Состојба</th><th class="num">Читања</th><th class="num">Попусти</th></tr>
+        </thead>
+        <tbody>
+          {% for chain, status, count, discounts in runs %}
+            <tr class="st-{{ status }}">
+              <td>{{ chain }}</td>
+              <td>
+                {% if status == "success" %}успешно
+                {% elif status == "unchanged" %}непроменет ценовник
+                {% elif status == "empty" %}изворот не објави цени
+                {% elif status == "failed" %}изворот не е достапен
+                {% elif status == "structure_changed" %}сменета структура — бара поправка
+                {% elif status == "running" %}во тек
+                {% else %}{{ status }}
+                {% endif %}
+              </td>
+              <td class="num">{{ count }}</td>
+              <td class="num">{{ "{:,}".format(discounts).replace(",", ".") }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+
+    <section class="stat-block" style="margin-top: 26px;">
+      <h2 class="stat-title">Колку од ценовниците е прочитано</h2>
+      <p class="stat-note">
+        Ред што читачот не можел да го разбере се брои како прескокнат.
+        Неколку се нормални; многу значи дека изворот сменил формат.
+      </p>
+
+      {% if not quality %}
+        <p class="empty">Нема читања за овој ден.</p>
+      {% else %}
+        <table class="status-table">
+          <thead>
+            <tr>
+              <th>Маркет</th>
+              <th class="num">Прочитани редови</th>
+              <th class="num">Прескокнати</th>
+              <th class="num">Продавници</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for chain, total, skipped, stores in quality %}
+              <tr{% if skipped %} class="st-failed"{% endif %}>
+                <td>{{ chain }}</td>
+                <td class="num">{{ "{:,}".format(total).replace(",", ".") }}</td>
+                <td class="num">
+                  {% if skipped %}
+                    <strong>{{ "{:,}".format(skipped).replace(",", ".") }}</strong>
+                    ({{ "%.2f"|format(skipped / total * 100 if total else 0) }}%)
+                  {% else %}
+                    —
+                  {% endif %}
+                </td>
+                <td class="num">{{ stores or "—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endif %}
+    </section>
+
+    <p class="subtitle" style="margin-top: 16px;">
+      <a href="/">← назад на попустите</a> ·
+      <a href="/statistika">статистика</a>
+    </p>
+  </main>
+</div>
+{% endblock %}

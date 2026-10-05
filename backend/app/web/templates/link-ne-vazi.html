@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block body %}
+<div class="layout layout-single">
+  <main class="content auth">
+
+    <section class="page-head">
+      <h1>Линкот не важи</h1>
+      <p class="subtitle">
+        Три можни причини, сите безопасни.
+      </p>
+    </section>
+
+    <div class="auth-form">
+      <ul class="why">
+        <li><strong>Истекол.</strong> Линкот важи еден час.</li>
+        <li><strong>Веќе е искористен.</strong> Секој линк отвора еднаш.</li>
+        <li><strong>Побаран е понов.</strong> Новиот линк го гаси стариот.</li>
+      </ul>
+      <p><a class="btn" href="/najava">Прати ми нов линк</a></p>
+    </div>
+
+  </main>
+</div>
+{% endblock %}

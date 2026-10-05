@@ -1,0 +1,206 @@
+"""Конфигурација на апликацијата, читана од околината (.env)."""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from typing import Literal
+from urllib.parse import quote_plus
+from zoneinfo import ZoneInfo
+
+from pydantic import Field, field_validator, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Вредностите од .env.example и сè што личи на нив. На сервер со овие
+# апликацијата НЕ смее да стартува: тајна што стои во јавно репо не е тајна.
+PLACEHOLDER_SECRETS = frozenset(
+    {
+        "смени-ме",
+        "смени-ме-со-случаен-стринг",
+        "change-me",
+        "secret",
+        "password",
+        "postgres",
+        "test",
+        "test-secret-key-dolga-najmalku-16",
+    }
+)
+
+
+class Settings(BaseSettings):
+    """Сите поставки доаѓаат од променливи на околината; види .env.example."""
+
+    model_config = SettingsConfigDict(
+        env_file=(".env", "../.env"),
+        env_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    # ---- Апликација ----
+    app_env: Literal["development", "test", "production"] = "development"
+    log_level: str = "INFO"
+    secret_key: str = Field(min_length=16)
+
+    # ---- PostgreSQL ----
+    postgres_db: str = "marketchecker"
+    postgres_user: str = "marketchecker"
+    postgres_password: str
+    postgres_host: str = "db"
+    postgres_port: int = 5432
+
+    # ---- Читачи на ценовници (учтиво читање) ----
+    scraper_user_agent: str = "Marketchecker/0.1"
+    scraper_delay_seconds: float = Field(default=1.5, ge=0)
+    scraper_max_retries: int = Field(default=3, ge=0)
+    scraper_timeout_seconds: float = Field(default=30.0, gt=0)
+
+    # ---- Пошта (потврда на адреса и најава со линк) ----
+    # Празен сервер значи дека поштата НЕ се испраќа: линкот се запишува во
+    # дневникот. Така локалното тестирање не зависи од сервис за пошта, а
+    # на production празниот сервер се одбива (види подолу).
+    smtp_host: str = ""
+    smtp_port: int = Field(default=465, ge=1, le=65535)
+    smtp_user: str = ""
+    smtp_password: str = ""
+    # Што гледа примачот во полето „Од".
+    smtp_from: str = "DARBOX Marketchecker <info@darbo.mk>"
+    # Портот 465 носи TLS од првиот бајт; 587 почнува отворено и се крева
+    # со STARTTLS. Погрешен избор дава врска што виси, не јасна грешка.
+    smtp_ssl: bool = True
+    # Проверка на сертификатот на поштенскиот сервер. Се гаси САМО кога
+    # хостингот нуди сертификат на друго име од тоа на кое се поврзуваме -
+    # чест случај кај споделен хостинг. Тогаш врската е и натаму шифрирана,
+    # но не се потврдува дека серверот е тој за кој се претставува.
+    smtp_verify: bool = True
+    # Колку се чека серверот за пошта. Испраќањето е внатре во барањето за
+    # да може страницата искрено да каже „писмото не тргна" - затоа не смее
+    # да чека долго.
+    smtp_timeout: float = Field(default=15.0, gt=0, le=60)
+
+    # Колку трае линкот од поштата. Подолго е поудобно, пократко е побезбедно;
+    # еден час е доволен за некој да ја отвори поштата.
+    mail_link_minutes: int = Field(default=60, ge=5, le=1440)
+
+    # Колку трае најавата пред повторно да се бара линк. Без лозинка,
+    # честата најава значи честа посета на поштата - затоа долго.
+    session_days: int = Field(default=90, ge=1, le=365)
+
+    # Адресата на која апликацијата е достапна. Влегува во линковите што
+    # одат по пошта: тие се отвораат на друг уред, па „localhost" не чини.
+    public_url: str = "http://localhost:8000"
+
+    # ---- Дневно закажување ----
+    scheduler_enabled: bool = True
+    scheduler_timezone: str = "Europe/Skopje"
+    scheduler_hour: int = Field(default=11, ge=0, le=23)
+    scheduler_minute: int = Field(default=0, ge=0, le=59)
+
+    @field_validator("scheduler_timezone")
+    @classmethod
+    def _validate_timezone(cls, value: str) -> str:
+        """Непостоечка зона мора да падне како грешка во конфигурацијата.
+
+        `ZoneInfo` фрла `KeyError`, кој pydantic НЕ го претвора во читлива
+        порака - се добиваше гол `ZoneInfoNotFoundError` наместо да се каже
+        која поставка е погрешна.
+        """
+        try:
+            ZoneInfo(value)
+        except Exception as exc:
+            raise ValueError(
+                f"SCHEDULER_TIMEZONE={value!r} не е позната временска зона"
+            ) from exc
+        return value
+
+    @field_validator("scraper_user_agent")
+    @classmethod
+    def _validate_user_agent(cls, value: str) -> str:
+        """HTTP заглавијата мора да бидат ASCII.
+
+        Кирилица во SCRAPER_USER_AGENT би крашнала секое барање кон изворите,
+        и тоа дури при самото читање. Подобро апликацијата да не стартува.
+        """
+        if not value.isascii():
+            raise ValueError(
+                "SCRAPER_USER_AGENT смее да содржи само ASCII знаци "
+                "(HTTP заглавијата не поддржуваат кирилица)"
+            )
+        return value
+
+    @model_validator(mode="after")
+    def _refuse_placeholder_secrets(self) -> Settings:
+        """На сервер, примерните тајни ја запираат апликацијата.
+
+        Полесно е да се заборави `SECRET_KEY` отколку да се забележи - а
+        последицата е сесија што секој може да ја потпише. Подобро да не
+        стартува отколку да работи отворена.
+        """
+        if self.app_env != "production":
+            return self
+
+        weak = [
+            name
+            for name, value in (
+                ("SECRET_KEY", self.secret_key),
+                ("POSTGRES_PASSWORD", self.postgres_password),
+            )
+            if value.strip().lower() in PLACEHOLDER_SECRETS
+        ]
+        if weak:
+            raise ValueError(
+                "На production не смее да се работи со примерни тајни: "
+                + ", ".join(weak)
+                + ". Генерирај со: "
+                'python -c "import secrets; print(secrets.token_urlsafe(48))"'
+            )
+
+        # Без пошта на сервер нема ни најава: сметката се активира и се
+        # отвора само преку линк. Подобро да не стартува отколку луѓето да
+        # останат заклучени надвор.
+        if not self.smtp_host:
+            raise ValueError(
+                "SMTP_HOST мора да биде поставен на production: без пошта "
+                "никој не може да се најави."
+            )
+        return self
+
+    @property
+    def tz(self) -> ZoneInfo:
+        """Временска зона во која се смета „денешниот“ ценовник."""
+        return ZoneInfo(self.scheduler_timezone)
+
+    @property
+    def database_url(self) -> str:
+        """Async DSN за SQLAlchemy/asyncpg."""
+        return self._dsn(self.postgres_db)
+
+    @property
+    def test_database_url(self) -> str:
+        """Одделна база за тестови, за да не ги гази развојните податоци."""
+        return self._dsn(f"{self.postgres_db}_test")
+
+    def _dsn(self, database: str) -> str:
+        password = quote_plus(self.postgres_password)
+        return (
+            f"postgresql+asyncpg://{self.postgres_user}:{password}"
+            f"@{self.postgres_host}:{self.postgres_port}/{database}"
+        )
+
+    @property
+    def is_production(self) -> bool:
+        return self.app_env == "production"
+
+    @property
+    def mail_enabled(self) -> bool:
+        """Дали поштата навистина се испраќа.
+
+        Кога не е наместена, линковите одат во дневникот - локалното
+        тестирање не смее да зависи од сервис за пошта.
+        """
+        return bool(self.smtp_host)
+
+
+@lru_cache
+def get_settings() -> Settings:
+    """Кеширана инстанца; користи ја ова наместо да креираш Settings() директно."""
+    return Settings()  # type: ignore[call-arg]

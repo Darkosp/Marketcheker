@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img"
+     aria-label="Marketchecker">
+  <!-- Знакот е процент: попуст, без зборови, за да работи и како мала икона. -->
+  <rect width="512" height="512" rx="112" fill="#0d7a6f"/>
+  <g fill="none" stroke="#ffffff" stroke-width="42" stroke-linecap="round">
+    <circle cx="186" cy="186" r="52"/>
+    <circle cx="326" cy="326" r="52"/>
+    <path d="M352 150 L160 362"/>
+  </g>
+</svg>

@@ -1,0 +1,1059 @@
+/* Marketchecker
+   Mobile-first: телефонот е главниот екран. Над 960px се појавува
+   странична лента со филтрите, а картичките се реденаат во мрежа. */
+
+:root {
+  --bg: #f4f6f8;
+  --surface: #ffffff;
+  --surface-2: #f8fafc;
+  --text: #111827;
+  --text-soft: #4b5563;
+  --muted: #6b7280;
+  --line: #e5e7eb;
+  --line-soft: #f0f2f5;
+
+  --accent: #0d7a6f;
+  --accent-soft: #e6f4f1;
+  --sale: #d61f33;
+  --sale-soft: #fdecee;
+  --loyalty: #6d28d9;
+  --loyalty-soft: #f1ebfd;
+  --warn: #a35a00;
+  --warn-soft: #fdf1e0;
+
+  --radius: 12px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgb(16 24 40 / 6%), 0 1px 3px rgb(16 24 40 / 4%);
+  --gutter: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0a0f1a;
+    --surface: #121a28;
+    --surface-2: #0f1724;
+    --text: #e8edf5;
+    --text-soft: #b6c2d4;
+    --muted: #8b99ad;
+    --line: #1e2a3c;
+    --line-soft: #172232;
+
+    --accent: #2fd4c0;
+    --accent-soft: #0e2b2a;
+    --sale: #ff7084;
+    --sale-soft: #2c1119;
+    --loyalty: #c4b5fd;
+    --loyalty-soft: #221a3a;
+    --warn: #f3b44a;
+    --warn-soft: #2a1f0c;
+
+    --shadow: none;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-feature-settings: "tnum" 0;
+}
+
+a { color: var(--accent); text-decoration-thickness: 1px; }
+
+/* ======================= лента на врвот ======================= */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px var(--gutter);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 650;
+  font-size: 1.02rem;
+  color: var(--text);
+  text-decoration: none;
+  letter-spacing: -0.01em;
+}
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 7px;
+}
+
+/* „DARBOX" ја носи марката, „Marketchecker" кажува што е - затоа се
+   разликуваат по тежина, не по големина. На тесен екран второто се крие:
+   иконата и марката се доволни за да се знае каде си. */
+.brand-name strong { font-weight: 800; letter-spacing: -0.02em; }
+.brand-name { font-weight: 500; }
+
+@media (max-width: 420px) {
+  .brand-name { font-size: 0.95rem; }
+}
+
+.topnav { display: flex; gap: 14px; }
+.topnav a { font-size: 0.85rem; color: var(--muted); text-decoration: none; }
+.topnav a:hover { color: var(--accent); }
+
+/* ======================= распоред ======================= */
+.layout {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 12px var(--gutter) 40px;
+  display: grid;
+  gap: 16px;
+}
+
+.page-head h1 {
+  margin: 0 0 2px;
+  font-size: 1.4rem;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+}
+
+.subtitle { margin: 0; font-size: 0.85rem; color: var(--muted); }
+
+.notice {
+  margin: 6px 0 0;
+  padding: 9px 12px;
+  font-size: 0.85rem;
+  color: var(--warn);
+  background: var(--warn-soft);
+  border-radius: var(--radius-sm);
+}
+
+/* ======================= панел со филтри ======================= */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 13px 14px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.panel-head::-webkit-details-marker { display: none; }
+
+.panel-caret {
+  width: 9px;
+  height: 9px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: rotate(45deg) translate(-2px, -2px);
+  transition: transform 0.15s ease;
+}
+
+.panel[open] .panel-caret { transform: rotate(-135deg) translate(-2px, -2px); }
+
+.panel-body {
+  display: grid;
+  gap: 12px;
+  padding: 0 14px 14px;
+  border-top: 1px solid var(--line-soft);
+  padding-top: 14px;
+}
+
+.field { display: grid; gap: 5px; }
+
+.field-hint {
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  color: var(--accent);
+}
+
+.field-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+select {
+  width: 100%;
+  padding: 9px 30px 9px 11px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentcolor 50%),
+    linear-gradient(135deg, currentcolor 50%, transparent 50%);
+  background-position: calc(100% - 16px) 50%, calc(100% - 11px) 50%;
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+}
+
+select:focus-visible,
+.chip:focus-visible,
+.page-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.86rem;
+  color: var(--text-soft);
+  cursor: pointer;
+}
+
+.switch input { width: 17px; height: 17px; accent-color: var(--accent); margin: 0; }
+
+/* ======================= копчиња за категории ======================= */
+.chip-rail { display: grid; gap: 8px; }
+
+.chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chips::-webkit-scrollbar { height: 4px; }
+.chips::-webkit-scrollbar-thumb { background: var(--line); border-radius: 4px; }
+
+.chips-sub {
+  padding-left: 11px;
+  border-left: 2px solid var(--accent);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 0.83rem;
+  font-weight: 500;
+  color: var(--text-soft);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+.chip:hover { border-color: var(--accent); }
+
+.chip-count {
+  font-size: 0.74rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+
+.chip-on {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.chip-on .chip-count { color: rgb(255 255 255 / 75%); }
+
+.chip-sm { padding: 5px 10px; font-size: 0.78rem; }
+
+@media (prefers-color-scheme: dark) {
+  .chip-on { color: #06231f; }
+  .chip-on .chip-count { color: rgb(6 35 31 / 70%); }
+}
+
+/* ======================= заглавие на резултати ======================= */
+.results-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-height: 22px;
+  margin: 2px 0 10px;
+}
+
+.result-count { margin: 0; font-size: 0.85rem; color: var(--muted); }
+.result-count strong { color: var(--text); font-variant-numeric: tabular-nums; }
+
+.loading { font-size: 0.8rem; color: var(--accent); opacity: 0; }
+.htmx-request .loading, .loading.htmx-request { opacity: 1; }
+
+.empty {
+  padding: 36px 16px;
+  text-align: center;
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+/* ======================= картички ======================= */
+.cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 12px 13px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.card-loyalty { border-left: 3px solid var(--loyalty); }
+
+.name {
+  margin: 0;
+  font-size: 0.92rem;
+  font-weight: 560;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+}
+
+/* Трите броја во ред: редовна, со попуст, заштеда. Секој со ситна ознака
+   над себе - без неа „700 500 200" не кажува ништо. */
+.prices {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 4px 18px;
+}
+
+.price-was, .price-now, .price-save { display: grid; gap: 1px; }
+
+.price-cap {
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.price-was s {
+  font-size: 0.92rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.price-now strong {
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+/* Заштедата е бројот поради кој страницата постои - таа е обоената. */
+.price-save strong {
+  font-size: 1.3rem;
+  font-weight: 700;
+  line-height: 1.05;
+  color: var(--sale);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.price-unit {
+  margin: 0;
+  font-size: 0.76rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  font-size: 0.78rem;
+  color: var(--text-soft);
+}
+
+.city { color: var(--muted); }
+
+.tags { display: flex; flex-wrap: wrap; gap: 4px; }
+
+.tag {
+  padding: 2px 7px;
+  font-size: 0.7rem;
+  color: var(--muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+}
+
+.tag-loyalty {
+  font-weight: 600;
+  color: var(--loyalty);
+  background: var(--loyalty-soft);
+  border-color: transparent;
+}
+
+.tag-day {
+  font-weight: 600;
+  color: var(--sale);
+  background: var(--sale-soft);
+  border-color: transparent;
+}
+
+.tag-sub { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
+
+/* ======================= страничење ======================= */
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 18px 0 4px;
+}
+
+.page-numbers { display: flex; gap: 4px; }
+
+.page-btn {
+  min-width: 36px;
+  padding: 8px 11px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-soft);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.page-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+
+.page-btn:disabled { opacity: 0.4; cursor: default; }
+
+.page-on {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+  font-weight: 650;
+}
+
+@media (prefers-color-scheme: dark) { .page-on { color: #06231f; } }
+
+.page-step { font-size: 0.8rem; }
+.page-gap { align-self: center; padding: 0 2px; color: var(--muted); }
+
+.pager-note {
+  margin: 0;
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
+/* ======================= состојба ======================= */
+.status-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.86rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.status-table th,
+.status-table td { padding: 10px 12px; text-align: left; border-bottom: 1px solid var(--line-soft); }
+
+.status-table th {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
+.status-table tr:last-child td { border-bottom: none; }
+.status-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.st-failed td, .st-structure_changed td { color: var(--warn); }
+.st-empty td { color: var(--muted); }
+
+/* ======================= подножје ======================= */
+.footer {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 20px var(--gutter) 28px;
+  font-size: 0.76rem;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* ======================= поширок екран ======================= */
+@media (min-width: 640px) {
+  .cards { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (min-width: 960px) {
+  :root { --gutter: 24px; }
+
+  .layout {
+    grid-template-columns: 272px minmax(0, 1fr);
+    align-items: start;
+    gap: 24px;
+    padding-top: 22px;
+  }
+
+  .sidebar { position: sticky; top: 68px; }
+
+  /* На компјутер филтрите се секогаш отворени - има место. */
+  .panel-head { cursor: default; }
+  .panel-caret { display: none; }
+  .panel-body { display: grid !important; }
+
+  .content { min-width: 0; }
+
+  .page-head h1 { font-size: 1.6rem; }
+}
+
+@media (min-width: 1140px) {
+  .cards { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+
+
+/* ======================= статистика ======================= */
+.layout-single { grid-template-columns: minmax(0, 1fr); }
+
+.stat-block { margin: 0 0 26px; }
+
+.stat-title {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.stat-note { margin: 0 0 12px; font-size: 0.82rem; color: var(--muted); }
+
+.bars { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+
+.bar-row {
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.bar-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.bar-name { font-weight: 600; font-size: 0.95rem; }
+
+.bar-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.bar-track {
+  height: 7px;
+  margin: 8px 0 7px;
+  background: var(--surface-2);
+  border-radius: 99px;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+  max-width: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+}
+
+.bar-meta { font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
+.bar-meta strong { color: var(--text-soft); }
+
+.movement { display: flex; gap: 10px; flex-wrap: wrap; }
+
+.move {
+  flex: 1 1 140px;
+  padding: 14px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.move-value {
+  display: block;
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+
+.move-label { font-size: 0.8rem; color: var(--muted); }
+.move-up .move-value { color: var(--sale); }
+.move-down .move-value { color: var(--accent); }
+
+
+/* ======================= копчиња ======================= */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 18px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.btn:hover { filter: brightness(1.06); }
+
+.btn-ghost {
+  color: var(--text-soft);
+  background: var(--surface);
+  border-color: var(--line);
+}
+
+.btn-ghost:hover { color: var(--accent); border-color: var(--accent); filter: none; }
+
+
+/* ======================= лентата „следиш" ======================= */
+.picked {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  padding: 10px 12px;
+  font-size: 0.84rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.picked-label { font-weight: 600; color: var(--muted); }
+.picked-list {
+  display: flex;
+  flex: 1 1 200px;
+  flex-wrap: wrap;
+  gap: 5px;
+  min-width: 0;
+  color: var(--text-soft);
+}
+
+.picked-one {
+  padding: 3px 9px;
+  font-weight: 600;
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: 99px;
+}
+.picked-edit, .picked-clear { white-space: nowrap; font-size: 0.82rem; }
+.picked-clear { color: var(--muted); }
+
+
+/* ======================= страницата со избор ======================= */
+/* Изборот оди чекор по чекор: прво групите, потоа под-категориите, потоа
+   зборовите од вистинските називи. Сè со обични врски - ништо на оваа
+   страница не бара JavaScript. */
+
+/* ---- твојата листа ---- */
+.mine {
+  padding: 14px;
+  background: var(--accent-soft);
+  border-radius: var(--radius);
+}
+
+.mine-title {
+  margin: 0 0 8px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.mine-empty { margin: 0; font-size: 0.86rem; line-height: 1.55; color: var(--text-soft); }
+
+.mine-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+
+.mine-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 6px 6px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+}
+
+.mine-drop {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  font-size: 0.8rem;
+  color: var(--muted);
+  text-decoration: none;
+  background: var(--surface-2);
+  border-radius: 50%;
+}
+
+.mine-drop:hover { color: #fff; background: var(--sale); }
+
+/* ---- каде сме ---- */
+.trail { display: flex; flex-wrap: wrap; gap: 6px; font-size: 0.82rem; }
+.trail-sep { color: var(--line); }
+.trail-now { font-weight: 600; }
+
+/* ---- „следи го ова во целост" ---- */
+.take-all {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 12px;
+  padding: 14px;
+  text-decoration: none;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+}
+
+.take-all:hover { background: var(--accent-soft); }
+.take-all-text { font-size: 0.95rem; }
+.take-all-text strong { color: var(--accent); }
+.take-all-count { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---- следното ниво ---- */
+.step-title {
+  margin: 4px 0 -4px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.steps { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+
+.step {
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+/* Отворањето и земањето се две различни работи, па се две различни
+   површини за тапкање - инаку не се знае што прави кликот. */
+.step-open {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 52px;
+  padding: 8px 12px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.step-open:hover { background: var(--surface-2); }
+.step-name { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 0.95rem; }
+.step-count { font-size: 0.78rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.step-go { font-size: 1.1rem; color: var(--muted); }
+
+.step-take {
+  display: grid;
+  place-items: center;
+  flex: none;
+  padding: 0 14px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  border-left: 1px solid var(--line);
+}
+
+.step-take:hover { color: #fff; background: var(--accent); }
+.step-on { color: #fff; background: var(--accent); }
+
+/* ---- вид, бренд, грамажа ---- */
+.type { display: grid; gap: 10px; }
+
+.pick-find {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 0.95rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.type-note { margin: 2px 0 -4px; font-size: 0.8rem; color: var(--muted); }
+
+.terms { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.term {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 99px;
+}
+
+.term:hover { border-color: var(--accent); color: var(--accent); }
+.term-count { font-size: 0.74rem; font-weight: 500; color: var(--muted); }
+.term-sm { padding: 6px 10px; font-size: 0.78rem; font-weight: 500; }
+.term-on { color: #fff; background: var(--accent); border-color: var(--accent); }
+.term-on .term-count { color: rgb(255 255 255 / 75%); }
+
+/* Лентата со копчето стои на дното на екранот: инаку треба да се лизга до
+   крај за да се потврди изборот. */
+.pick-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 calc(-1 * var(--gutter));
+  padding: 12px var(--gutter);
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+}
+
+.pick-chosen { font-size: 0.84rem; color: var(--muted); }
+.pick-actions { display: flex; gap: 8px; margin-left: auto; }
+
+
+/* ======================= нема попуст на избраното ======================= */
+.empty-pick {
+  padding: 36px 20px 40px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.empty-pick-mark {
+  margin: 0 0 10px;
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--line);
+}
+
+.empty-pick-title {
+  margin: 0 auto 10px;
+  max-width: 30ch;
+  font-size: 1.1rem;
+  font-weight: 650;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+
+.empty-pick-checked {
+  margin: 0 auto;
+  max-width: 48ch;
+  font-size: 0.86rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+.empty-pick-label { font-weight: 600; }
+
+.empty-pick-note {
+  margin: 12px auto 0;
+  max-width: 44ch;
+  font-size: 0.82rem;
+  color: var(--warn);
+}
+
+.empty-pick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin: 22px 0 0;
+}
+
+@media (min-width: 640px) {
+  .type { grid-template-columns: 1fr auto; align-items: end; }
+}
+
+
+/* ======================= сметка ======================= */
+.topnav-me {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-soft);
+}
+
+/* Одјавата е формулар, не врска - затоа копчето се прави да изгледа како
+   другите ставки во менито. */
+.topnav-out { display: inline; margin: 0; }
+
+.topnav-out button {
+  padding: 0;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.topnav-out button:hover { color: var(--accent); }
+
+.auth { max-width: 420px; }
+
+.auth-form {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.auth-input {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 1rem;
+  color: var(--text);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.auth-input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.auth-hint { font-size: 0.78rem; line-height: 1.5; color: var(--muted); }
+
+.auth-error {
+  margin: 0;
+  padding: 10px 12px;
+  font-size: 0.86rem;
+  color: var(--sale);
+  background: var(--sale-soft);
+  border-radius: var(--radius-sm);
+}
+
+.auth-submit { width: 100%; }
+
+.auth-switch { margin: 16px 0 0; font-size: 0.88rem; text-align: center; }
+
+.auth-note {
+  margin: 20px 0 0;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+
+/* ======================= повик да се направи листа ======================= */
+.invite {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 16px;
+  color: var(--text);
+  text-decoration: none;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+}
+
+.invite:hover { filter: brightness(0.98); }
+
+.invite-text { flex: 1 1 260px; font-size: 0.88rem; line-height: 1.6; }
+.invite-text strong { display: block; font-size: 1rem; color: var(--accent); }
+
+.invite-go {
+  flex: none;
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border-radius: var(--radius-sm);
+}
+
+.why { margin: 0 0 18px; padding-left: 20px; font-size: 0.9rem; line-height: 1.7; }
+.why strong { color: var(--text); }
