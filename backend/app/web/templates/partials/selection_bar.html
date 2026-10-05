@@ -9,6 +9,14 @@
    и колачето да не го враќа избришаното. #}
 <input type="hidden" name="izbor" value="">
 
+{# Пишувањето е прво: човекот што знае што бара не треба да лази низ
+   нивоа. Формуларот е ОДДЕЛЕН од филтрите - своја акција, свој метод. #}
+<a class="find-open" href="/najdi{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">
+  <span class="find-open-icon" aria-hidden="true">⌕</span>
+  <span class="find-open-text">Најди производ или бренд</span>
+  <span class="find-open-eg">нескафе · компир · зејтин брилијант</span>
+</a>
+
 <div class="picked">
   {% if chosen %}
     <span class="picked-label">Следиш:</span>
@@ -34,7 +42,7 @@
      го најде местото за избор. #}
   <a class="invite" href="/izbor{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">
     <span class="invite-text">
-      <strong>Направи си листа, {{ user.username }}.</strong>
+      <strong>Направи си листа, {{ user.display }}.</strong>
       Избери ги производите што ги купуваш — потоа тука ќе ги гледаш само
       нивните попусти, наместо сите {{ pagination.total|broj }}.
     </span>

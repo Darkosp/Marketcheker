@@ -1,8 +1,7 @@
 """Отворање сметка, влез со линк, одјава.
 
-Нема лозинки. Сметката се отвора со корисничко име и адреса, и се потврдува
-со линк што стигнува на таа адреса - **еднаш**. Потоа секоја најава бара
-корисничко име и адреса, без пошта.
+Нема лозинки и нема корисничко име. Адресата е сè: со неа се отвора
+сметката, се потврдува со линк - еднаш - и потоа се влегува, без пошта.
 
 Најавата НЕ е услов за ништо: без сметка страницата и натаму ги покажува
 сите денешни попусти. Сметката носи едно нешто - листата да биде на
@@ -46,7 +45,7 @@ async def _send_link(
     link = f"{settings.public_url.rstrip('/')}/vlez?{urlencode({'t': token})}"
 
     context = {
-        "username": user.username,
+        "display": user.display,
         "link": link,
         "minutes": settings.mail_link_minutes,
         "first_time": first_time,
@@ -111,24 +110,22 @@ async def register_form(request: Request, user: CurrentUser) -> Response:
 async def register(
     request: Request,
     session: SessionDep,
-    ime: str = Form(default=""),
     posta: str = Form(default=""),
 ) -> Response:
     try:
-        user = await accounts.register(session, ime, posta)
+        user = await accounts.register(session, posta)
     except accounts.AccountError as problem:
         return _page(
             request,
             "registracija.html",
             title="Направи сметка",
             error=str(problem),
-            ime=ime,
             posta=posta,
         )
 
     link, sent = await _send_link(request, session, user, first_time=True)
     await session.commit()
-    log.info("Нова сметка: %s", user.username)
+    log.info("Нова сметка: %s", user.email)
     return _sent_page(request, user, link, sent, first_time=True)
 
 
@@ -146,23 +143,20 @@ async def login_form(request: Request, user: CurrentUser) -> Response:
 async def login(
     request: Request,
     session: SessionDep,
-    ime: str = Form(default=""),
     posta: str = Form(default=""),
 ) -> Response:
-    """Влез со корисничко име и адреса.
+    """Влез со адреса.
 
-    Обете мора да се од иста сметка. Непотврдената сметка не влегува - ѝ се
-    праќа линкот повторно, зашто потврдата на адресата е единственото нешто
-    што се проверува по пошта.
+    Непотврдената сметка не влегува - ѝ се праќа линкот повторно, зашто
+    потврдата на адресата е единственото нешто што се проверува по пошта.
     """
-    user = await accounts.authenticate(session, ime, posta)
+    user = await accounts.authenticate(session, posta)
     if user is None:
         return _page(
             request,
             "najava.html",
             title="Влез",
-            error="Нема сметка со тоа корисничко име и таа адреса.",
-            ime=ime,
+            error="Нема сметка на таа адреса.",
             posta=posta,
         )
 

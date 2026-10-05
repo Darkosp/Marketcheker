@@ -37,7 +37,9 @@ from app.services.discounts import (
     read_quality,
     run_summary,
 )
+from app.services.highlights import best_recently, shopping_scale, total_savings
 from app.services.ingest import today_local
+from app.services.search import understand
 from app.services.stats import (
     chain_stats,
     latest_stats_date,
@@ -52,8 +54,12 @@ router = APIRouter(tags=["pages"])
 CATEGORY_SLUGS = frozenset(category_slugs())
 
 # Колку попусти по страница.
+#
+# Стандардно 24, не 48: страницата со 48 картички е 107 KB и се гради околу
+# 400 ms, а на телефон никој не ги прелистува сите пред да стесни. Кој сака
+# повеќе, го бира во „повеќе".
 PAGE_SIZES: tuple[int, ...] = (24, 48, 96, 200)
-DEFAULT_PAGE_SIZE = PAGE_SIZES[1]
+DEFAULT_PAGE_SIZE = PAGE_SIZES[0]
 
 # Процентот не се нуди: 50% на производ од 100 денари е 50 денари, а 28%
 # на кафе од 700 е 200. Старите линкови со `sortiraj=popust` и натаму
@@ -156,6 +162,10 @@ def _store_ids(raw: list[str] | None) -> list[int]:
         if text.isdigit():
             ids.append(int(text))
     return ids
+
+
+def is_htmx_request(request: Request) -> bool:
+    return bool(request.headers.get("hx-request"))
 
 
 def _cookie_keys(request: Request) -> list[str]:
@@ -298,6 +308,15 @@ async def index(
     # Празната страница се појавува само кога ИЗБОРОТ останал без попусти.
     # Бројот на проверени продавници оди со неа: „нема попуст" без него
     # изгледа како дефект, а со него е тврдење.
+    # Првото нешто за човек без сметка и без листа: зошто ова вреди.
+    # Кој веќе има листа или сметка, не му треба реклама.
+    if user is None and not chosen and not is_htmx_request(request):
+        highlights = await best_recently(session, run_date)
+        chains, stores = await shopping_scale(session)
+        context["highlights"] = highlights
+        context["highlight_total"] = total_savings(highlights)
+        context["scale"] = {"chains": chains, "stores": stores}
+
     context["empty_selection"] = bool(chosen) and not total
     if context["empty_selection"]:
         chains, store_count = await read_coverage(
@@ -307,7 +326,7 @@ async def index(
 
     # HTMX бара само резултатите; копчињата се враќаат одделно
     # (out-of-band), за да се освежи означеното иако се менува само списокот.
-    is_htmx = bool(request.headers.get("hx-request"))
+    is_htmx = is_htmx_request(request)
     context["oob"] = is_htmx
     template = "partials/results.html" if is_htmx else "index.html"
 
@@ -447,6 +466,72 @@ async def selection_page(
         "link": _linker(chosen, grad),
     }
     return templates.TemplateResponse(request, "izbor.html", context)
+
+
+@router.get("/najdi", response_class=HTMLResponse, summary="Најди производ")
+async def search_page(
+    request: Request,
+    session: SessionDep,
+    user: CurrentUser,
+    q: str = "",
+    izbor: list[str] | None = Query(default=None),
+    grad: str | None = None,
+) -> HTMLResponse:
+    """Пишување наместо кликање низ нивоата.
+
+    Истата страница одговара на трите случаи, бидејќи разликата меѓу нив е
+    само во бројки:
+
+        „кафе"              широко → нуди категорија и зборови за стеснување
+        „кафе инстант"      потесно → пак нуди
+        „зејтин брилијант"  3 производи → тоа е изборот
+
+    Стеснувањето е уште еден збор во истото поле, не друг механизам.
+    """
+    if user is not None:
+        remembered = await accounts.load_picks(session, user)
+    else:
+        remembered = _cookie_keys(request)
+    chosen, _ = selection.choose(izbor, remembered)
+    grad = grad or ""
+
+    found = await understand(session, q) if q.strip() else None
+
+    def link(add: str | None = None, narrow: str | None = None) -> str:
+        """Врска што ја носи целата листа со себе."""
+        keys = [pick.key for pick in chosen]
+        if add and add not in keys:
+            keys.append(add)
+        after = selection.normalise(keys)
+
+        if narrow is not None:
+            parts = [("q", narrow), *[("izbor", p.key) for p in after]]
+            if not after:
+                parts.append(("izbor", ""))
+            if grad:
+                parts.append(("grad", grad))
+            return "/najdi?" + urlencode(parts)
+        return _izbor_url(after, None, grad or None)
+
+    context = {
+        "title": f"Најди: {q}" if q.strip() else "Најди производ",
+        "user": user,
+        "q": q.strip(),
+        "found": found,
+        "chosen": chosen,
+        "chosen_keys": {pick.key for pick in chosen},
+        "selected": {"grad": grad},
+        "link": link,
+    }
+    return templates.TemplateResponse(request, "najdi.html", context)
+
+
+@router.get("/upatstvo", response_class=HTMLResponse, summary="Како се користи")
+async def guide_page(request: Request, user: CurrentUser) -> HTMLResponse:
+    """Упатство. Нема упити - текстот е ист за секого."""
+    return templates.TemplateResponse(
+        request, "upatstvo.html", {"title": "Како се користи", "user": user}
+    )
 
 
 @router.get("/sostojba", response_class=HTMLResponse, summary="Состојба на читањата")

@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.catalog.picks import Pick, like_pattern
+from app.core.cache import Cache
 from app.models import (
     Chain,
     City,
@@ -27,6 +28,12 @@ from app.models import (
     Store,
 )
 from app.models.enums import PromoType, RunStatus
+
+# Броењата ја вртат истата тешка агрегација - над 150.000 реда групирани по
+# единаесет колони - и одговорот е ист до следното читање. Страницата ги
+# бара обата при секое отворање, па без ова секој посетител плаќаше 700 ms.
+_COUNTS = Cache(seconds=600)
+
 
 # Основните единици се чуваат латинично; на екран одат на македонски.
 UNIT_LABELS = {
@@ -302,19 +309,53 @@ def _aggregate_query(filters: DiscountFilter) -> Select:
 async def list_discounts(
     session: AsyncSession, filters: DiscountFilter
 ) -> list[DiscountRow]:
-    query = (
-        _aggregate_query(filters)
-        .order_by(*_aggregated_ordering(filters))
-        .limit(filters.limit)
-        .offset(filters.offset)
+    """Една страница попусти.
+
+    И ова е кеширано: подредувањето по заштеда бара целата агрегација да се
+    пресмета пред да се земат првите дваесет, па нефилтрираниот список
+    чинеше околу половина секунда - за одговор што е ист за сите до
+    следното читање.
+    """
+
+    async def run() -> list[DiscountRow]:
+        query = (
+            _aggregate_query(filters)
+            .order_by(*_aggregated_ordering(filters))
+            .limit(filters.limit)
+            .offset(filters.offset)
+        )
+        return [_from_aggregate(row) for row in await session.execute(query)]
+
+    return await _COUNTS.get(
+        ("list", _signature(filters), filters.sort_by, filters.limit, filters.offset),
+        run,
     )
-    return [_from_aggregate(row) for row in await session.execute(query)]
+
+
+def _signature(filters: DiscountFilter) -> tuple:
+    """Клуч за кеш: сè што го менува одговорот, без подредување и страници."""
+    return (
+        filters.run_date,
+        filters.city_slug,
+        tuple(sorted(filters.store_ids)),
+        filters.group_slug,
+        tuple(pick.key for pick in filters.picks),
+        filters.include_loyalty,
+        filters.only_single_day,
+    )
 
 
 async def count_discounts(session: AsyncSession, filters: DiscountFilter) -> int:
     """Колку РАЗЛИЧНИ попусти има - спојување како во списокот."""
-    inner = _join_and_filter(select(*_GROUPING), filters).group_by(*_GROUPING)
-    return await session.scalar(select(func.count()).select_from(inner.subquery())) or 0
+
+    async def run() -> int:
+        inner = _join_and_filter(select(*_GROUPING), filters).group_by(*_GROUPING)
+        return (
+            await session.scalar(select(func.count()).select_from(inner.subquery()))
+            or 0
+        )
+
+    return await _COUNTS.get(("count", _signature(filters)), run)
 
 
 async def counts_by_group(
@@ -327,22 +368,26 @@ async def counts_by_group(
     name = func.coalesce(Group.name, Category.name)
     order = func.coalesce(Group.sort_order, Category.sort_order)
 
-    merged = (
-        _join_and_filter(
-            select(slug.label("slug"), name.label("name"), order.label("sort_order")),
-            filters,
+    async def run() -> list[tuple[str, str, int]]:
+        merged = (
+            _join_and_filter(
+                select(
+                    slug.label("slug"), name.label("name"), order.label("sort_order")
+                ),
+                filters,
+            )
+            .group_by(*_GROUPING, slug, name, order)
+            .subquery()
         )
-        .group_by(*_GROUPING, slug, name, order)
-        .subquery()
-    )
+        query = (
+            select(merged.c.slug, merged.c.name, func.count(), merged.c.sort_order)
+            .group_by(merged.c.slug, merged.c.name, merged.c.sort_order)
+            .order_by(merged.c.sort_order)
+        )
+        rows = await session.execute(query)
+        return [(s or "drugo", n or "Друго", count) for s, n, count, _ in rows]
 
-    query = (
-        select(merged.c.slug, merged.c.name, func.count(), merged.c.sort_order)
-        .group_by(merged.c.slug, merged.c.name, merged.c.sort_order)
-        .order_by(merged.c.sort_order)
-    )
-    rows = await session.execute(query)
-    return [(s or "drugo", n or "Друго", count) for s, n, count, _ in rows]
+    return await _COUNTS.get(("groups", _signature(filters)), run)
 
 
 async def counts_by_subcategory(
@@ -381,6 +426,14 @@ async def available_cities(
     session: AsyncSession, run_date: date
 ) -> list[tuple[str, str, int]]:
     """Градови што имаат попусти за денот, со број на продавници."""
+    return await _COUNTS.get(
+        ("cities", run_date), lambda: _available_cities(session, run_date)
+    )
+
+
+async def _available_cities(
+    session: AsyncSession, run_date: date
+) -> list[tuple[str, str, int]]:
     query = (
         select(City.slug, City.name, func.count(func.distinct(Store.id)))
         .join(Store, Store.city_id == City.id)
@@ -396,6 +449,15 @@ async def available_stores(
     session: AsyncSession, run_date: date, city_slug: str | None = None
 ) -> list[tuple[int, str, str, int]]:
     """(id, маркет, продавница, број попусти) за денот."""
+    return await _COUNTS.get(
+        ("stores", run_date, city_slug),
+        lambda: _available_stores(session, run_date, city_slug),
+    )
+
+
+async def _available_stores(
+    session: AsyncSession, run_date: date, city_slug: str | None = None
+) -> list[tuple[int, str, str, int]]:
     query = (
         select(Store.id, Chain.name, Store.name, func.count(PriceRow.id))
         .join(Chain, Store.chain_id == Chain.id)

@@ -32,6 +32,20 @@ os.environ["PUBLIC_URL"] = "http://test"
 # Без тоа, тестовите означени со @pytest.mark.db се прескокнуваат.
 
 
+@pytest.fixture(autouse=True)
+def _fresh_caches():
+    """Кешовите не смеат да преживеат меѓу тестови.
+
+    Тие важат десет минути, што е точно за ден работа и погрешно за тест:
+    два теста со ист филтер и различни податоци добиваа ист одговор.
+    """
+    from app.core.cache import clear_all
+
+    clear_all()
+    yield
+    clear_all()
+
+
 @pytest.fixture(scope="session")
 def settings():
     from app.core.config import get_settings

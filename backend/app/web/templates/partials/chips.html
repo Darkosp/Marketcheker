@@ -3,10 +3,10 @@
    При HTMX барање се враќаат и одделно (out-of-band), за да означеното се
    освежи иако се менува само списокот со резултати. #}
 <div id="kategorii" class="chip-rail"{% if oob %} hx-swap-oob="true"{% endif %}>
-  {# Кога изборот останал без попусти, страницата е празна по барање на
-     корисникот - копчињата со нули не се прикажуваат. Самиот сад остава
-     за да HTMX има што да замени при следното барање. #}
-  {% if not empty_selection %}
+  {# Копчињата служат за прелистување кога се гледа СÈ. Кој си избрал што
+     следи, веќе го стеснил списокот - тогаш се само шум.
+     Садот останува за да HTMX има што да замени при следното барање. #}
+  {% if not empty_selection and not chosen %}
   <div class="chips" role="group" aria-label="Групи">
     <button type="submit" data-grupa="" data-strana="1"
             class="chip {% if not selected.grupa %}chip-on{% endif %}">

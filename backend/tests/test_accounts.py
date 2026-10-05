@@ -18,36 +18,8 @@ from app.services import accounts
 pytestmark = pytest.mark.db
 
 
-async def _user(session, username: str = "darko", email: str = "darko@primer.mk"):
-    return await accounts.register(session, username, email)
-
-
-# ==========================================================================
-# Корисничко име
-# ==========================================================================
-@pytest.mark.parametrize("name", ["darko", "d.sp", "marko_1", "ab-cd", "a" * 32])
-def test_good_usernames_pass(name: str) -> None:
-    assert accounts.check_username(name) == name
-
-
-@pytest.mark.parametrize(
-    "name",
-    [
-        "ab",  # прекратко
-        "a" * 33,  # предолго
-        "со празно",
-        "дарко",  # кирилица - „а" и „a" би биле два невидливо различни
-        "darko@primer.mk",
-        "",
-    ],
-)
-def test_bad_usernames_are_refused(name: str) -> None:
-    with pytest.raises(accounts.AccountError):
-        accounts.check_username(name)
-
-
-def test_case_does_not_make_a_second_person() -> None:
-    assert accounts.normalise_username("  DaRkO ") == "darko"
+async def _user(session, email: str = "darko@primer.mk"):
+    return await accounts.register(session, email)
 
 
 # ==========================================================================
@@ -89,23 +61,25 @@ async def test_no_password_is_stored(db_session) -> None:
     assert user.password_hash is None
 
 
-async def test_the_same_name_cannot_be_taken_twice(db_session) -> None:
-    await _user(db_session)
-    with pytest.raises(accounts.AccountError, match="зафатено"):
-        await _user(db_session, "darko", "drugo@primer.mk")
-
-
 async def test_the_same_address_cannot_be_taken_twice(db_session) -> None:
-    """Едно сандаче, една сметка - инаку линкот за влез не знае каде води."""
+    """Едно сандаче, една сметка - инаку влезот не знае каде води."""
     await _user(db_session)
     with pytest.raises(accounts.AccountError, match="веќе има сметка"):
-        await _user(db_session, "drugo-ime", "darko@primer.mk")
+        await _user(db_session)
 
 
-async def test_the_same_name_in_capitals_is_the_same_person(db_session) -> None:
-    await _user(db_session, "Darko")
-    with pytest.raises(accounts.AccountError, match="зафатено"):
-        await _user(db_session, "DARKO", "drugo@primer.mk")
+async def test_the_same_address_in_capitals_is_the_same_account(
+    db_session,
+) -> None:
+    await _user(db_session, "Darko@Primer.MK")
+    with pytest.raises(accounts.AccountError, match="веќе има сметка"):
+        await _user(db_session, "DARKO@PRIMER.MK")
+
+
+async def test_the_name_on_screen_comes_from_the_address(db_session) -> None:
+    """Нема корисничко име, но мора да има како да му се обратиш."""
+    user = await _user(db_session, "marko.petrov@primer.mk")
+    assert user.display == "marko.petrov"
 
 
 # ==========================================================================
@@ -117,12 +91,6 @@ async def test_an_account_is_found_by_address(db_session) -> None:
     assert found is not None
 
 
-async def test_an_account_is_found_by_username_too(db_session) -> None:
-    """Човекот пишува што памети."""
-    await _user(db_session)
-    assert await accounts.find_by_login(db_session, "darko") is not None
-
-
 async def test_an_unknown_login_finds_nothing(db_session) -> None:
     assert await accounts.find_by_login(db_session, "nikogas@primer.mk") is None
     assert await accounts.find_by_login(db_session, "") is None
@@ -131,45 +99,31 @@ async def test_an_unknown_login_finds_nothing(db_session) -> None:
 # ==========================================================================
 # Најава со корисничко име и адреса
 # ==========================================================================
-async def test_the_pair_enters(db_session) -> None:
+async def test_the_address_enters(db_session) -> None:
     await _user(db_session)
-    assert await accounts.authenticate(
-        db_session, "darko", "darko@primer.mk"
-    ) is not None
+    assert await accounts.authenticate(db_session, "darko@primer.mk") is not None
 
 
 async def test_capitals_and_spaces_do_not_matter(db_session) -> None:
     await _user(db_session)
-    assert await accounts.authenticate(
-        db_session, "  DARKO ", " Darko@Primer.MK "
-    ) is not None
+    assert await accounts.authenticate(db_session, " Darko@Primer.MK ") is not None
 
 
-async def test_the_name_alone_does_not_enter(db_session) -> None:
-    """Инаку секој што ќе напише туѓо име влегува во туѓа сметка."""
+async def test_an_empty_address_does_not_enter(db_session) -> None:
     await _user(db_session)
-    assert await accounts.authenticate(db_session, "darko", "") is None
+    assert await accounts.authenticate(db_session, "") is None
 
 
-async def test_the_address_alone_does_not_enter(db_session) -> None:
+async def test_an_unknown_address_does_not_enter(db_session) -> None:
     await _user(db_session)
-    assert await accounts.authenticate(db_session, "", "darko@primer.mk") is None
-
-
-async def test_a_name_with_another_persons_address_does_not_enter(
-    db_session,
-) -> None:
-    """Обете мора да се од ИСТА сметка."""
-    await _user(db_session, "darko", "darko@primer.mk")
-    await _user(db_session, "ana", "ana@primer.mk")
-    assert await accounts.authenticate(db_session, "darko", "ana@primer.mk") is None
+    assert await accounts.authenticate(db_session, "tugja@primer.mk") is None
 
 
 async def test_a_closed_account_does_not_enter(db_session) -> None:
     user = await _user(db_session)
     user.is_active = False
     await db_session.flush()
-    assert await accounts.authenticate(db_session, "darko", "darko@primer.mk") is None
+    assert await accounts.authenticate(db_session, "darko@primer.mk") is None
 
 
 # ==========================================================================
@@ -283,8 +237,8 @@ async def test_an_empty_list_can_be_saved(db_session) -> None:
 
 async def test_two_people_keep_separate_lists(db_session) -> None:
     """Токму ова колачето не можеше да го направи на ист компјутер."""
-    one = await _user(db_session, "darko", "darko@primer.mk")
-    two = await _user(db_session, "ana", "ana@primer.mk")
+    one = await _user(db_session, "darko@primer.mk")
+    two = await _user(db_session, "ana@primer.mk")
     await accounts.save_picks(db_session, one, [Pick("kafe", ("нескафе",))])
     await accounts.save_picks(db_session, two, [Pick("pelenki")])
 

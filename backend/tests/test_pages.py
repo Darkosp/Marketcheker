@@ -407,3 +407,146 @@ async def test_city_name_is_shown_next_to_the_market_label(
 
 async def test_no_city_means_no_hint(client: AsyncClient) -> None:
     assert "field-hint" not in (await client.get("/")).text
+
+
+# ==========================================================================
+# Страницата за пишување
+# ==========================================================================
+@pytest.mark.parametrize(
+    "query",
+    ["", "?q=", "?q=кафе", "?q=нема-вакво", "?q=%25", "?q=кафе&izbor=masla", "?q=a"],
+)
+async def test_the_search_page_never_returns_validation_error(
+    client: AsyncClient, query: str
+) -> None:
+    assert (await client.get(f"/najdi{query}")).status_code == 200
+
+
+async def test_a_wide_word_offers_a_way_to_narrow(client: AsyncClient) -> None:
+    html = (await client.get("/najdi?q=кафе")).text
+    assert "Стесни уште" in html
+    assert "НЕСКАФЕ" in html
+
+
+async def test_a_wide_word_also_offers_the_category(client: AsyncClient) -> None:
+    html = (await client.get("/najdi?q=кафе")).text
+    assert "Следи ја целата" in html
+    assert "otvori=kafe" in html
+
+
+async def test_a_precise_phrase_is_offered_as_a_finished_choice(
+    client: AsyncClient,
+) -> None:
+    """Тоа што го бараше корисникот: „зејтин брилијант" веднаш е готово."""
+    html = (await client.get("/najdi?q=зејтин+брилијант")).text
+    assert "Следи ги" in html
+    assert "Стесни уште" not in html
+
+
+async def test_narrowing_keeps_the_previous_words(client: AsyncClient) -> None:
+    html = (await client.get("/najdi?q=кафе")).text
+    assert "q=%D0%BA%D0%B0%D1%84%D0%B5+" in html or "q=кафе+" in html
+
+
+async def test_the_search_keeps_the_list(client: AsyncClient) -> None:
+    html = (await client.get("/najdi?q=кафе&izbor=masla")).text
+    assert "izbor=masla" in html
+
+
+async def test_nothing_found_explains_why(client: AsyncClient) -> None:
+    html = (await client.get("/najdi?q=нештоштонепостои")).text
+    assert "Нема ништо" in html
+
+
+async def test_the_main_page_offers_the_search(client: AsyncClient) -> None:
+    assert 'href="/najdi' in (await client.get("/")).text
+
+
+async def test_the_picker_offers_the_search_too(client: AsyncClient) -> None:
+    assert 'href="/najdi' in (await client.get("/izbor")).text
+
+
+# ==========================================================================
+# Почетна страница за посетител без сметка
+# ==========================================================================
+async def test_a_visitor_is_told_what_this_is(client: AsyncClient) -> None:
+    html = (await client.get("/?izbor=")).text
+    assert "Секој ден ги читаме" in html
+    assert "Колку се заштедува" in html
+
+
+async def test_the_examples_are_marked_as_examples(client: AsyncClient) -> None:
+    """Страница што прикажува стари цени како денешни го губи човекот
+    еднаш засекогаш.
+    """
+    html = (await client.get("/?izbor=")).text
+    assert "Ова е пример, не денешна понуда" in html
+
+
+async def test_each_example_carries_the_day_it_was_seen(
+    client: AsyncClient,
+) -> None:
+    html = (await client.get("/?izbor=")).text
+    assert "save-when" in html
+
+
+async def test_the_visitor_is_invited_to_open_an_account(
+    client: AsyncClient,
+) -> None:
+    html = (await client.get("/?izbor=")).text
+    assert 'href="/registracija"' in html
+
+
+async def test_someone_with_a_list_gets_no_sales_pitch(
+    client: AsyncClient,
+) -> None:
+    """Кој веќе избрал што следи, не му треба реклама."""
+    html = (await client.get("/?izbor=kafe")).text
+    assert "Колку се заштедува" not in html
+
+
+async def test_htmx_requests_skip_the_landing(client: AsyncClient) -> None:
+    """Делче што го менува само списокот не смее да го носи целото."""
+    partial = (await client.get("/?izbor=", headers={"HX-Request": "true"})).text
+    assert "Колку се заштедува" not in partial
+
+
+# ==========================================================================
+# Упатство
+# ==========================================================================
+async def test_the_guide_opens(client: AsyncClient) -> None:
+    assert (await client.get("/upatstvo")).status_code == 200
+
+
+async def test_the_guide_covers_the_whole_way(client: AsyncClient) -> None:
+    """Од отворање сметка до читање на картичката - тоа беше барањето."""
+    html = (await client.get("/upatstvo")).text
+    for part in (
+        "Направи сметка",
+        "Влез",
+        "Избор на производи",
+        "Како се чита картичката",
+        "Менување на листата",
+    ):
+        assert part in html, part
+
+
+async def test_the_guide_names_all_three_ways_of_choosing(
+    client: AsyncClient,
+) -> None:
+    html = (await client.get("/upatstvo")).text
+    assert "Пишуваш што бараш" in html
+    assert "Лазиш низ категории" in html
+    assert "Напишеш директно во изборот" in html
+
+
+async def test_the_guide_warns_about_cyrillic(client: AsyncClient) -> None:
+    """Најчестата причина за „не наоѓа ништо"."""
+    html = (await client.get("/upatstvo")).text
+    assert "nescafe" in html
+    assert "кирилица" in html
+
+
+async def test_every_page_links_to_the_guide(client: AsyncClient) -> None:
+    for path in ("/", "/izbor", "/najdi", "/statistika"):
+        assert "/upatstvo" in (await client.get(path)).text, path

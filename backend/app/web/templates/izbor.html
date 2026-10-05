@@ -22,6 +22,12 @@
       </p>
     </section>
 
+    <a class="find-open" href="/najdi{% if selected.grad %}?grad={{ selected.grad }}{% endif %}">
+      <span class="find-open-icon" aria-hidden="true">⌕</span>
+      <span class="find-open-text">Напиши што бараш</span>
+      <span class="find-open-eg">нескафе · компир · зејтин брилијант</span>
+    </a>
+
     {# ===================== твојата листа ===================== #}
     <section class="mine">
       {% if chosen %}

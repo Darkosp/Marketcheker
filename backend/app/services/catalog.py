@@ -16,7 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
 
 from app.catalog.groups import category_names
+from app.core.cache import Cache
 from app.models import Product, ProductCategory
+
+# Бројот производи по категорија се менува само по дневното читање, а
+# дрвото се гради на секое отворање на изборот и на секое пребарување.
+_CACHE = Cache(seconds=600)
 
 
 @dataclass(slots=True)
@@ -34,6 +39,11 @@ class CategoryNode:
 
 
 async def catalog_tree(session: AsyncSession) -> list[CategoryNode]:
+    """Како `_catalog_tree`, но запаметено до десет минути."""
+    return await _CACHE.get("tree", lambda: _catalog_tree(session))
+
+
+async def _catalog_tree(session: AsyncSession) -> list[CategoryNode]:
     """Групите со своите под-категории, со број производи во секоја.
 
     Бројот на групата го вклучува и она што седи директно на неа: кога

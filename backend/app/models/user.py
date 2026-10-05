@@ -23,15 +23,14 @@ if TYPE_CHECKING:
 
 
 class User(Base, TimestampMixin):
-    """Сметка без лозинка.
+    """Сметка без лозинка и без корисничко име.
 
-    Се отвора со корисничко име и адреса; влегувањето оди преку линк што
-    стигнува на таа адреса - истиот механизам и за првата потврда и за
-    секоја следна најава.
+    Адресата е сè: со неа се отвора сметката, се потврдува со линк, и се
+    влегува. Едно поле за пополнување наместо две.
 
-    `password_hash` останува, но празен: старите сметки направени со
-    лозинка не се бришат, а новите не ја користат. Кога ќе се испразни
-    сосема, колоната може да падне.
+    `username` и `password_hash` останале од поранешните верзии и се празни
+    кај новите сметки. Кога ќе се испразнат сосема, колоните може да паднат.
+    Името што се гледа на екран се вади од адресата (`display`).
     """
 
     __tablename__ = "app_user"  # "user" е резервиран збор во PostgreSQL
@@ -39,7 +38,8 @@ class User(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True)
     # Се чува секогаш со мали букви (нормализирано при регистрација), за да
     # „Darko" и „darko" не бидат два различни корисника.
-    username: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    # Остаток од верзијата со корисничко име; новите сметки го немаат.
+    username: Mapped[str | None] = mapped_column(String(64), unique=True, index=True)
 
     # Адресата е единствена: едно сандаче, една сметка. Може да фали само
     # кај старите сметки направени пред да има пошта.
@@ -71,6 +71,17 @@ class User(Base, TimestampMixin):
     @property
     def is_confirmed(self) -> bool:
         return self.email_confirmed_at is not None
+
+    @property
+    def display(self) -> str:
+        """Како се обраќаме на екран.
+
+        Делот од адресата пред „@": „darko@primer.mk" станува „darko". Не е
+        единствено и не служи за најава - само за поздрав.
+        """
+        if self.username:
+            return self.username
+        return (self.email or "").split("@")[0] or "корисник"
 
     city: Mapped[City | None] = relationship(back_populates="users")
     store_links: Mapped[list[UserStore]] = relationship(

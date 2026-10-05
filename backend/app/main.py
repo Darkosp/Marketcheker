@@ -6,6 +6,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
@@ -47,6 +48,11 @@ def create_app() -> FastAPI:
         docs_url=None if settings.is_production else "/docs",
         redoc_url=None,
     )
+
+    # Страницата со попусти е 70-80 KB чист текст и се собира на околу
+    # десеттина. На телефон со слаба врска тоа е разликата меѓу „веднаш" и
+    # „чекам". Caddy исто компресира на сервер; ова важи и без него.
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
 
     # Сесијата го држи најавениот корисник.
     app.add_middleware(
