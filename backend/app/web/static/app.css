@@ -1475,3 +1475,54 @@ select:focus-visible,
 .guide-end { display: flex; flex-wrap: wrap; gap: 10px; margin: 10px 0 0; }
 
 .footer-links { margin: 0 0 8px; }
+
+
+/* ============ две целини: што е избрано, и каде се избира ============ */
+/* Двете површини една под друга се читаа како еден блок. Горе е листата -
+   тоа што е ВЕЌЕ избрано; долу е работната површина каде се ПРАВИ изборот.
+   Разделникот со натпис го кажува тоа со зборови, а панелот со своја
+   позадина го покажува со облик. */
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 14px 0 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+
+.choose {
+  display: grid;
+  gap: 14px;
+  padding: 18px 16px 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+/* Внатре во панелот, картичките треба да се одделуваат од неговата
+   позадина - инаку сè се слева. */
+.choose .step,
+.choose .term,
+.choose .pick-find,
+.choose .take-all { background: var(--surface); }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .choose { background: #0d1522; }
+}
+
+@media (min-width: 640px) {
+  .choose { padding: 22px 20px 24px; }
+  .divider { margin-top: 18px; }
+}
