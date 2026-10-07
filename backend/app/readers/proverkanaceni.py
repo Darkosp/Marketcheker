@@ -2,7 +2,7 @@
 
 Повеќе синџири ја користат истата услуга, секој на свој поддомен:
 
-    https://zito.proverkanaceni.mk/       Жито Лукс   (94 продавници)
+    https://zito.proverkanaceni.mk/       Жито маркети  (94 продавници)
     https://stokomak.proverkanaceni.mk/   Стокомак    (81 продавница)
     https://tamaro.proverkanaceni.mk/     Тамаро      (13 продавници)
 
@@ -328,8 +328,11 @@ def _guard_skipped(skipped: int, kept: int, *, source: str) -> None:
 # --------------------------------------------------------------------------
 class ZitoReader(ProverkaNaCeniReader):
     chain_code: ClassVar[str] = "zito"
-    chain_name: ClassVar[str] = "Жито Лукс"
-    website: ClassVar[str] = "https://zitoluks.com.mk/"
+    # „Жито Лукс" е пекара, не маркет - тоа беше моја грешка, извлечена
+    # од поддоменот. Маркетот се вика Жито маркети. Сајтот покажува кон
+    # самиот ценовник, зашто изворот не именува друг.
+    chain_name: ClassVar[str] = "Жито маркети"
+    website: ClassVar[str] = "https://zito.proverkanaceni.mk/"
     subdomain: ClassVar[str] = "zito"
 
 
