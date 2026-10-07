@@ -149,7 +149,7 @@ docker compose exec api python -m app.cli citaj --tinex
 
 | Синџир | Поддомен | Продавници |
 |---|---|---|
-| Жито Лукс | `zito.proverkanaceni.mk` | 94 |
+| Жито маркети | `zito.proverkanaceni.mk` | 94 |
 | Стокомак | `stokomak.proverkanaceni.mk` | 81 |
 | Тамаро | `tamaro.proverkanaceni.mk` | 13 |
 

@@ -51,7 +51,7 @@ def test_available_chains_is_ready_for_seed() -> None:
     assert chains["kipper"][0] == "Кипер"
     assert chains["kam"][0] == "КАМ"
     assert chains["tinex"][0] == "Тинекс"
-    assert chains["zito"][0] == "Жито Лукс"
+    assert chains["zito"][0] == "Жито маркети"
     assert chains["stokomak"][0] == "Стокомак"
     assert chains["tamaro"][0] == "Тамаро"
 
