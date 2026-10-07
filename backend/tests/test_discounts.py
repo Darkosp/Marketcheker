@@ -585,3 +585,55 @@ async def test_rows_without_a_regular_price_have_no_savings(db_session) -> None:
     )
     rows = await list_discounts(db_session, DiscountFilter(run_date=RUN_DATE))
     assert rows[0].savings is None
+
+
+# ==========================================================================
+# Групирање: истиот производ од повеќе маркети едно до друго
+# ==========================================================================
+async def test_the_leading_word_is_read_from_the_name(seeded) -> None:
+    """Во македонските ценовници првиот збор кажува ШТО е производот."""
+    rows = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, picks=[Pick("masla")])
+    )
+    assert rows[0].leading_word == "МАСЛО"
+
+
+async def test_rows_with_the_same_leading_word_stand_together(seeded) -> None:
+    rows = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, sort_by=SortBy.PRODUCT)
+    )
+    words = [row.leading_word for row in rows]
+    # Секој збор се појавува во еден непрекинат блок.
+    seen: list[str] = []
+    for word in words:
+        if not seen or seen[-1] != word:
+            assert word not in seen, f"{word} се појавува на две места"
+            seen.append(word)
+
+
+async def test_the_group_with_the_biggest_saving_comes_first(seeded) -> None:
+    """Групите се подредени по најдобрата заштеда во нив, не азбучно."""
+    rows = await list_discounts(
+        seeded, DiscountFilter(run_date=RUN_DATE, sort_by=SortBy.PRODUCT)
+    )
+    assert rows[0].leading_word == "МАСЛО"  # заштеда 250, најголемата
+
+
+async def test_inside_a_group_the_biggest_saving_comes_first(
+    db_session,
+) -> None:
+    await _seed(
+        db_session,
+        _Reader,
+        SKOPJE_STORE,
+        [
+            _row("КАФЕ ЕДЕН", regular_price=Decimal("100"),
+                 discount_price=Decimal("90")),
+            _row("КАФЕ ДВА", regular_price=Decimal("300"),
+                 discount_price=Decimal("100")),
+        ],
+    )
+    rows = await list_discounts(
+        db_session, DiscountFilter(run_date=RUN_DATE, sort_by=SortBy.PRODUCT)
+    )
+    assert [row.product_name for row in rows] == ["КАФЕ ДВА", "КАФЕ ЕДЕН"]

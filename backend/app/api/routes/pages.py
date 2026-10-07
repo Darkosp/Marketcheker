@@ -69,6 +69,7 @@ DEFAULT_PAGE_SIZE = PAGE_SIZES[0]
 # на кафе од 700 е 200. Старите линкови со `sortiraj=popust` и натаму
 # работат - само не се предлага.
 SORT_OPTIONS: tuple[tuple[str, str], ...] = (
+    (SortBy.PRODUCT.value, "по производ"),
     (SortBy.SAVINGS.value, "најголема заштеда"),
     (SortBy.PRICE_ASC.value, "најниска цена"),
     (SortBy.UNIT_PRICE.value, "најевтино по кг/л"),
@@ -148,6 +149,38 @@ async def _resolve_date(session, requested: date | None) -> tuple[date, bool]:
     return latest, latest != today
 
 
+def _sort_for(asked: str | None, *, has_list: bool) -> SortBy:
+    """Подредувањето: тоа што е побарано, или смисленото за овој приказ.
+
+    Со листа - по производ, за да сите јајца стојат заедно. Без листа - по
+    заштеда, зашто меѓу шест илјади попусти една група полни цела страница
+    и првото нешто што го гледа посетителот се дваесет и четири велосипеди
+    од ист модел.
+    """
+    if asked:
+        try:
+            return SortBy(asked)
+        except ValueError:
+            pass
+    return SortBy.PRODUCT if has_list else SortBy.SAVINGS
+
+
+def _group_rows(rows: list) -> list[tuple[str, list]]:
+    """Редовите во именувани групи, по првиот збор од називот.
+
+    Редоследот доаѓа од упитот и не се менува тука - само се сече каде
+    зборот се менува.
+    """
+    groups: list[tuple[str, list]] = []
+    for row in rows:
+        word = row.leading_word or "Друго"
+        if groups and groups[-1][0] == word:
+            groups[-1][1].append(row)
+        else:
+            groups.append((word, [row]))
+    return groups
+
+
 def _clamp_page_size(value: int) -> int:
     return value if value in PAGE_SIZES else DEFAULT_PAGE_SIZE
 
@@ -201,7 +234,7 @@ async def index(
     grupa: str | None = None,
     izbor: list[str] | None = Query(default=None),
     market: list[str] | None = Query(default=None),
-    sortiraj: str = SortBy.SAVINGS.value,
+    sortiraj: str | None = None,
     lojalnost: bool = True,
     ednodnevni: bool = False,
     strana: int = 1,
@@ -209,10 +242,6 @@ async def index(
 ) -> HTMLResponse:
     run_date, is_stale = await _resolve_date(session, datum)
 
-    try:
-        sort_by = SortBy(sortiraj)
-    except ValueError:
-        sort_by = SortBy.SAVINGS
 
     page_size = _clamp_page_size(po_strana)
     stores = _store_ids(market)
@@ -225,6 +254,8 @@ async def index(
         chosen, chosen_in_url = selection.choose(
             izbor, await accounts.load_picks(session, user)
         )
+
+    sort_by = _sort_for(sortiraj, has_list=bool(chosen))
 
     # Градот се разрешува ПРЕД филтрите, зашто и тој се памети. Списокот
     # градови и така му треба на приказот, па не чини дополнителен упит.
@@ -261,6 +292,10 @@ async def index(
     rows = await list_discounts(
         session, build(grupa or None, limit=page_size, offset=pagination.offset)
     )
+    # Кога се гледа по производ, редовите одат во именувани групи: сите
+    # јајца заедно, сите сокови заедно. Групирањето се прави тука, не во
+    # шаблонот, за приказот да не брои и да споредува.
+    groups = _group_rows(rows) if sort_by is SortBy.PRODUCT else []
 
     # Бројките во менито се сметаат БЕЗ филтерот по категорија, за да
     # покажуваат колку има насекаде, не само во избраното.
@@ -283,6 +318,7 @@ async def index(
         "today": today_local(),
         "is_stale": is_stale,
         "rows": rows,
+        "groups": groups,
         "pagination": pagination,
         "page_sizes": PAGE_SIZES,
         "group_counts": await counts_by_group(session, menu_filters),

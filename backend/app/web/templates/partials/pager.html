@@ -1,0 +1,33 @@
+{# Страничењето. Копчињата ги поставуваат скриените полиња на формуларот
+   пред праќање - види го скриптот во index.html. #}
+{% if pagination.pages > 1 %}
+  <nav class="pager" aria-label="Страници">
+    <button type="submit" class="page-btn page-step" data-strana="{{ pagination.page - 1 }}"
+            {% if not pagination.has_previous %}disabled{% endif %}>
+      ← претходна
+    </button>
+
+    <div class="page-numbers">
+      {% set window = pagination.window %}
+      {% for page in window %}
+        {% if not loop.first and page > window[loop.index0 - 1] + 1 %}
+          <span class="page-gap">…</span>
+        {% endif %}
+        <button type="submit" data-strana="{{ page }}"
+                class="page-btn {% if page == pagination.page %}page-on{% endif %}"
+                {% if page == pagination.page %}aria-current="page"{% endif %}>
+          {{ page }}
+        </button>
+      {% endfor %}
+    </div>
+
+    <button type="submit" class="page-btn page-step" data-strana="{{ pagination.page + 1 }}"
+            {% if not pagination.has_next %}disabled{% endif %}>
+      следна →
+    </button>
+  </nav>
+  <p class="pager-note">
+    страница {{ pagination.page }} од
+    {{ "{:,}".format(pagination.pages).replace(",", ".") }}
+  </p>
+{% endif %}
