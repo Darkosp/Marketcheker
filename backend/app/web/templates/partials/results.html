@@ -19,102 +19,35 @@
     Нема попусти што одговараат на избраното.<br>
     Пробај со друг град или без филтри.
   </p>
+{% elif groups %}
+  {# Истиот производ од сите маркети едно до друго. Називите се разликуваат
+     меѓу маркетите - од 6.602 на еден ден, само осум се појавуваат во
+     повеќе од еден - па групата е првиот збор, таму каде што во
+     македонските ценовници стои ШТО е производот. #}
+  {% for word, items in groups %}
+    <section class="lot">
+      <h2 class="lot-name">
+        {{ word }}
+        <span class="lot-count">
+          {{ items|length }} {% if items|length == 1 %}попуст{% else %}попусти{% endif %}
+        </span>
+      </h2>
+      <ul class="cards">
+        {% for row in items %}
+          {% include "partials/card.html" %}
+        {% endfor %}
+      </ul>
+    </section>
+  {% endfor %}
+
+  {% include "partials/pager.html" %}
+
 {% else %}
   <ul class="cards">
     {% for row in rows %}
-      <li class="card{% if row.is_loyalty_only %} card-loyalty{% endif %}">
-        {# Називот е точно како во ценовникот - така корисникот го бара на
-           полицата. #}
-        <h3 class="name">{{ row.product_name }}</h3>
-
-        {# Трите броја: што чинеше, што чини, колку се заштедува. Процентот
-           го нема намерно: 50% на производ од 100 денари е 50 денари, а
-           28% на кафе од 700 е 200 - бројот во денари е тој што кажува. #}
-        <div class="prices">
-          {% if row.regular_price %}
-            <span class="price-was">
-              <span class="price-cap">редовна</span>
-              <s>{{ row.regular_price|round(0, "floor")|int }} ден</s>
-            </span>
-          {% endif %}
-          {% if row.discount_price %}
-            <span class="price-now">
-              <span class="price-cap">со попуст</span>
-              <strong>{{ row.discount_price|round(0, "floor")|int }} ден</strong>
-            </span>
-          {% endif %}
-          {% if row.savings %}
-            <span class="price-save">
-              <span class="price-cap">заштеда</span>
-              <strong>{{ row.savings|round(0, "floor")|int }} ден</strong>
-            </span>
-          {% endif %}
-        </div>
-
-        {% if row.unit_price_label %}
-          <p class="price-unit">{{ row.unit_price_label }}</p>
-        {% endif %}
-
-        <div class="card-meta">
-          <span class="store">{{ row.where_label }}</span>
-          {# Градот има смисла само кога попустот е во една продавница;
-             кај „10 продавници" еден град би бил полуинформација. #}
-          {% if row.city_name and row.store_count == 1 %}
-            <span class="city">{{ row.city_name }}</span>
-          {% endif %}
-        </div>
-
-        <div class="tags">
-          {# Колку трае - онака како што го пишува ценовникот. #}
-          {% if row.is_single_day %}
-            <span class="tag tag-day">само денес</span>
-          {% elif row.valid_to %}
-            <span class="tag tag-day">акција до {{ row.valid_to.strftime("%d.%m") }}</span>
-          {% else %}
-            <span class="tag">без наведен рок</span>
-          {% endif %}
-          {% if row.is_loyalty_only %}
-            <span class="tag tag-loyalty">само со картичка</span>
-          {% endif %}
-          {% if row.subcategory_name %}
-            <span class="tag tag-sub">{{ row.subcategory_name }}</span>
-          {% elif row.group_name %}
-            <span class="tag tag-sub">{{ row.group_name }}</span>
-          {% endif %}
-        </div>
-      </li>
+      {% include "partials/card.html" %}
     {% endfor %}
   </ul>
 
-  {% if pagination.pages > 1 %}
-    <nav class="pager" aria-label="Страници">
-      <button type="submit" class="page-btn page-step" data-strana="{{ pagination.page - 1 }}"
-              {% if not pagination.has_previous %}disabled{% endif %}>
-        ← претходна
-      </button>
-
-      <div class="page-numbers">
-        {% set window = pagination.window %}
-        {% for page in window %}
-          {% if not loop.first and page > window[loop.index0 - 1] + 1 %}
-            <span class="page-gap">…</span>
-          {% endif %}
-          <button type="submit" data-strana="{{ page }}"
-                  class="page-btn {% if page == pagination.page %}page-on{% endif %}"
-                  {% if page == pagination.page %}aria-current="page"{% endif %}>
-            {{ page }}
-          </button>
-        {% endfor %}
-      </div>
-
-      <button type="submit" class="page-btn page-step" data-strana="{{ pagination.page + 1 }}"
-              {% if not pagination.has_next %}disabled{% endif %}>
-        следна →
-      </button>
-    </nav>
-    <p class="pager-note">
-      страница {{ pagination.page }} од
-      {{ "{:,}".format(pagination.pages).replace(",", ".") }}
-    </p>
-  {% endif %}
+  {% include "partials/pager.html" %}
 {% endif %}

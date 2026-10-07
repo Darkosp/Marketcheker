@@ -243,9 +243,36 @@ async def test_cards_show_money_not_percent(client: AsyncClient) -> None:
     assert "pct-high" not in html
 
 
-async def test_savings_is_the_default_order(client: AsyncClient) -> None:
-    html = (await client.get("/")).text
+async def test_a_list_is_shown_grouped_by_product(
+    signed_in: AsyncClient,
+) -> None:
+    """Сите јајца заедно, сите кафиња заедно - тоа е поентата на листата."""
+    html = (await signed_in.get("/?izbor=kafe&izbor=masla")).text
+    assert '<option value="proizvod" selected>' in html.replace(" >", ">")
+    assert 'class="lot-name"' in html
+
+
+async def test_browsing_everything_goes_by_savings(client: AsyncClient) -> None:
+    """Меѓу шест илјади попусти една група полни цела страница: првото
+    нешто што би го видел посетителот се дваесет и четири велосипеди од ист
+    модел.
+    """
+    html = (await client.get("/?izbor=")).text
     assert '<option value="zasteda" selected>' in html.replace(" >", ">")
+    assert 'class="lot-name"' not in html
+
+
+async def test_grouping_can_be_asked_for_anyway(client: AsyncClient) -> None:
+    html = (await client.get("/?izbor=&sortiraj=proizvod")).text
+    assert 'class="lot-name"' in html
+
+
+async def test_a_list_can_be_ordered_by_savings_anyway(
+    signed_in: AsyncClient,
+) -> None:
+    html = (await signed_in.get("/?izbor=kafe&sortiraj=zasteda")).text
+    assert 'class="lot-name"' not in html
+    assert 'class="card' in html
 
 
 async def test_old_percent_links_still_work(client: AsyncClient) -> None:

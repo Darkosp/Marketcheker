@@ -1526,3 +1526,29 @@ select:focus-visible,
   .choose { padding: 22px 20px 24px; }
   .divider { margin-top: 18px; }
 }
+
+
+/* ======================= групи по производ ======================= */
+/* Истиот производ од сите маркети едно до друго. Насловот ја именува
+   групата, за да се знае зошто овие картички стојат заедно. */
+.lot { margin: 0 0 22px; }
+
+.lot-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0 0 10px;
+  padding-bottom: 7px;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  border-bottom: 2px solid var(--accent-soft);
+}
+
+.lot-count {
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}

@@ -55,6 +55,10 @@ Group = aliased(ProductCategory, name="grupa")
 class SortBy(StrEnum):
     """Начини на подредување што ги бара спецификацијата."""
 
+    # Истиот производ од сите маркети едно до друго, а групите подредени по
+    # најдобрата заштеда во нив. Стандардно: список каде јајцата се расфрлани
+    # меѓу сладоледи и шампони се чита потешко од список каде се заедно.
+    PRODUCT = "proizvod"
     # Колку денари се заштедуваат - главната мерка. Процентот лаже за
     # ситните производи: 50% на производ од 100 денари е 50 денари, а
     # 28% на кафе од 700 е 200.
@@ -110,6 +114,8 @@ class DiscountRow:
     is_single_day: bool
     group_slug: str | None
     group_name: str | None
+    # Првиот збор од називот - по него се групира списокот.
+    leading_word: str = ""
     # Под-категоријата, ако производот стигнал до второ ниво.
     subcategory_slug: str | None = None
     subcategory_name: str | None = None
@@ -224,6 +230,20 @@ def _join_and_filter(query: Select, filters: DiscountFilter) -> Select:
 # неа одат на крај наместо да се преправаат дека заштедата е нула.
 SAVINGS = PriceRow.regular_price - PriceRow.discount_price
 
+# Првиот збор од називот. Во македонските ценовници таму стои ШТО е
+# производот: „ЈАЈЦА ВЕЗЕ ШАРИ Л 10/1", „ЈАЈЦА ВЕНИ КОМ Л 10/1".
+#
+# Зошто не самиот производ: од 6.602 различни називи на еден ден, само ОСУМ
+# се појавуваат во повеќе од еден маркет. Секој маркет пишува по свое, па
+# „ист производ" низ маркети по назив едноставно не постои. Првиот збор го
+# има во 285 случаи низ повеќе маркети - „СОК" низ четири, „СЛАДОЛЕД" низ
+# три - и тоа е групирањето што има смисла.
+LEADING_WORD = func.upper(
+    func.split_part(
+        func.regexp_replace(Product.raw_name, "^[^0-9A-Za-zЀ-ӿ]+", ""), " ", 1
+    )
+)
+
 
 # Колоните по кои се спојуваат редовите. Цената е меѓу нив намерно:
 # ист производ по РАЗЛИЧНА цена останува одделен запис, за да не измислиме
@@ -250,6 +270,16 @@ def _aggregated_ordering(filters: DiscountFilter):
     па смеат да се користат директно.
     """
     match filters.sort_by:
+        case SortBy.PRODUCT:
+            # Групите иду по најдобрата заштеда во нив, а внатре редовите по
+            # своја заштеда. Прозорецот се смета по групирањето, па смее да
+            # стои тука.
+            return (
+                func.max(SAVINGS).over(partition_by=LEADING_WORD).desc().nullslast(),
+                LEADING_WORD,
+                SAVINGS.desc().nullslast(),
+                Product.raw_name,
+            )
         case SortBy.SAVINGS:
             return (SAVINGS.desc().nullslast(), Product.raw_name)
         case SortBy.DISCOUNT_PCT:
@@ -290,6 +320,7 @@ def _aggregate_query(filters: DiscountFilter) -> Select:
             PriceRow.valid_from,
             PriceRow.valid_to,
             PriceRow.is_single_day,
+            LEADING_WORD.label("leading_word"),
             Category.slug.label("category_slug"),
             Category.name.label("category_name"),
             Group.slug.label("group_slug"),
@@ -590,6 +621,7 @@ def _from_aggregate(row) -> DiscountRow:
         valid_from=row.valid_from,
         valid_to=row.valid_to,
         is_single_day=row.is_single_day,
+        leading_word=row.leading_word or "",
         group_slug=row.group_slug or row.category_slug,
         group_name=row.group_name or row.category_name,
         subcategory_slug=row.category_slug if row.group_slug else None,
