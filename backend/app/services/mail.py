@@ -19,6 +19,7 @@ from __future__ import annotations
 import re
 import ssl
 from email.message import EmailMessage
+from email.utils import formatdate, make_msgid, parseaddr
 
 import aiosmtplib
 
@@ -43,6 +44,17 @@ def clean_email(value: str) -> str | None:
     return address
 
 
+def _sender_domain(sender: str) -> str:
+    """Доменот од адресата на испраќачот, за `Message-ID`.
+
+    Идентификаторот мора да носи домен што ни припаѓа; туѓ или измислен е
+    уште еден знак дека писмото не е од онаму од каде што тврди.
+    """
+    _, address = parseaddr(sender)
+    _, _, domain = address.partition("@")
+    return domain or "localhost"
+
+
 async def send(to: str, subject: str, text: str, html: str) -> bool:
     """Испраќа порака. `False` ако не поминала.
 
@@ -55,6 +67,17 @@ async def send(to: str, subject: str, text: str, html: str) -> bool:
     message["From"] = settings.smtp_from
     message["To"] = to
     message["Subject"] = subject
+
+    # Без овие двете писмото е неисправно по стандардот и филтрите го
+    # третираат како сомнително: првите пораки кон Gmail и Outlook беа
+    # прифатени од серверот и никогаш не стигнаа до сандачето.
+    message["Date"] = formatdate(localtime=True)
+    message["Message-ID"] = make_msgid(domain=_sender_domain(settings.smtp_from))
+
+    # Ова не е одговор на човек и не треба да добие автоматски одговор
+    # („надвор сум од канцеларија") - така се избегнува и јамка.
+    message["Auto-Submitted"] = "auto-generated"
+
     message.set_content(text)
     message.add_alternative(html, subtype="html")
 
