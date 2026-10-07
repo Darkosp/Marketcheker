@@ -704,8 +704,13 @@ select:focus-visible,
 .mine {
   padding: 14px;
   background: var(--accent-soft);
+  border: 1px solid transparent;
   border-radius: var(--radius);
 }
+
+/* Кога има нешто во листата, блокот се одделува повидливо од изборот под
+   него - инаку двете зелени површини се читаат како една. */
+.mine:has(.mine-list) { border-color: var(--accent); }
 
 .mine-title {
   margin: 0 0 8px;
@@ -746,10 +751,43 @@ select:focus-visible,
 
 .mine-drop:hover { color: #fff; background: var(--sale); }
 
+/* Деловите на страницата со избор имаат свој ритам: без ова „што следиш"
+   и „што избираш" се допираат и изгледаат како еден блок. */
+.pick { display: grid; gap: 16px; }
+
 /* ---- каде сме ---- */
-.trail { display: flex; flex-wrap: wrap; gap: 6px; font-size: 0.82rem; }
-.trail-sep { color: var(--line); }
-.trail-now { font-weight: 600; }
+/* Ова е патеката за враќање - единствениот начин да се излезе ниво погоре.
+   Беше ситна и се губеше меѓу другото; сега е голема колку што ѝ треба за
+   да се забележи и да се погоди со прст. */
+.trail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 6px;
+  font-size: 0.95rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.trail a {
+  padding: 8px 12px;
+  color: var(--accent);
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.trail a:hover { background: var(--accent-soft); }
+
+.trail-sep { font-size: 1.1rem; color: var(--line); }
+
+.trail-now {
+  padding: 8px 12px;
+  font-weight: 650;
+  color: var(--text);
+}
 
 /* ---- „следи го ова во целост" ---- */
 .take-all {
